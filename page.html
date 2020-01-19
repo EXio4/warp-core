@@ -1,0 +1,39 @@
+
+<canvas height="400" id="c" width="800"></canvas>
+
+<script src="./main.js"> </script>
+<script>
+
+setTimeout(() => {
+  const canvas = document.getElementById('c');
+  const mod = Module['asm']
+  const memory = wasmMemory
+
+  const height = canvas.height;
+  const width = canvas.width;
+  // Disabling alpha seems to give a slight boost. Image data still includes alpha though.
+  const ctx = canvas.getContext(
+      '2d',
+      {
+          alpha: false,
+          antialias: false,
+          depth: false
+      }
+  );
+  if (!ctx) {
+      throw 'Your browser does not support canvas';
+  }
+
+  const pointer = mod._init(width, height);
+  const data = new Uint8ClampedArray(memory.buffer, pointer, width * height * 4);
+  const img = new ImageData(data, width, height);
+
+  const render = (timestamp) => {
+      mod._render(timestamp);
+      ctx.putImageData(img, 0, 0);
+      window.requestAnimationFrame(render);
+  };
+  window.requestAnimationFrame(render);
+}, 50);
+
+</script>
