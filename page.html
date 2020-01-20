@@ -1,39 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Warp Core</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #c {
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" tabindex="0"></canvas>
+  </body>
 
-<canvas height="400" id="c" width="800"></canvas>
+  <script src="./main.js"> </script>
+  <script>
 
-<script src="./main.js"> </script>
-<script>
+  setTimeout(() => {
+    const canvas = document.getElementById('c');
+    const mod = Module['asm']
+    const memory = wasmMemory
 
-setTimeout(() => {
-  const canvas = document.getElementById('c');
-  const mod = Module['asm']
-  const memory = wasmMemory
-
-  const height = canvas.height;
-  const width = canvas.width;
-  // Disabling alpha seems to give a slight boost. Image data still includes alpha though.
-  const ctx = canvas.getContext(
+    let height = canvas.height;
+    let width = canvas.width;
+    // Disabling alpha seems to give a slight boost. Image data still includes alpha though.
+    const ctx = canvas.getContext(
       '2d',
       {
-          alpha: false,
-          antialias: false,
-          depth: false
+        alpha: false,
+        antialias: false,
+        depth: false
       }
-  );
-  if (!ctx) {
+    );
+    if (!ctx) {
       throw 'Your browser does not support canvas';
-  }
+    }
 
-  const pointer = mod._init(width, height);
-  const data = new Uint8ClampedArray(memory.buffer, pointer, width * height * 4);
-  const img = new ImageData(data, width, height);
+    const onResize = () => {
+      const aspect = window.innerWidth / window.innerHeight;
+      ctx.width = window.innerWidth<800?window.innerWidth:800;
+      ctx.height = ctx.width / aspect;
+      width = Math.floor(ctx.width);
+      height = Math.floor(ctx.height);
+      mod._updateCanvas(ctx.width, ctx.height);
+    }
 
-  const render = (timestamp) => {
-      mod._render(timestamp);
-      ctx.putImageData(img, 0, 0);
-      window.requestAnimationFrame(render);
-  };
-  window.requestAnimationFrame(render);
-}, 50);
+    // initialize routines
+    mod._initInput()
 
-</script>
+    ctx.onkeydown    = function (e) {
+      mod._handleKey(e.keyCode, 0)
+    }
+    ctx.onkeyup      = function (e) {
+      mod._handleKey(e.keyCode, 1)
+    }
+    onResize()
+    ctx.onresize = onResize
+
+    let pointer
+    let data
+    let img
+
+    const render = (timestamp) => {
+        const np = mod._render(timestamp);
+        if (np !== pointer) {
+          pointer = np
+          data = new Uint8ClampedArray(memory.buffer, pointer, width * height * 4);
+          img = new ImageData(data, width, height);
+        }
+        if (img) {
+          ctx.putImageData(img, 0, 0);
+        }
+        window.requestAnimationFrame(render);
+    };
+    window.requestAnimationFrame(render);
+  }, 50);
+
+  </script>
+</html>
