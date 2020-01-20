@@ -17,8 +17,7 @@ extern InputState input;
 extern "C" {
         
     void EMSCRIPTEN_KEEPALIVE initInput();
-    void EMSCRIPTEN_KEEPALIVE processKeyDown(int key);
-    void EMSCRIPTEN_KEEPALIVE processKeyUp(int key);
+    void EMSCRIPTEN_KEEPALIVE processKey(int key, int status);
 
     void EMSCRIPTEN_KEEPALIVE processMouseMovement(int x, int y);
 }
