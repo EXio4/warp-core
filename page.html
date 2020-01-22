@@ -45,7 +45,6 @@ var Module = {
       let refreshPointer = false
 
       const canvas = document.getElementById('c');
-      const mod = Module['asm']
       const memory = wasmMemory
 
       let height = canvas.height;
@@ -66,20 +65,20 @@ var Module = {
       const onResize = () => {
         width = Math.floor(window.innerWidth)
         height = Math.floor(window.innerHeight)
-        mod._updateCanvas(width, height);
+        Module._updateCanvas(width, height);
         refreshPointer = true
         canvas.width = width
         canvas.height = height
       }
 
       // initialize routines
-      mod._initInput()
+      Module._initInput()
 
       canvas.onkeydown    = function (e) {
-        mod._processKey(e.keyCode, 1)
+        Module._processKey(e.keyCode, 1)
       }
       canvas.onkeyup      = function (e) {
-        mod._processKey(e.keyCode, 0)
+        Module._processKey(e.keyCode, 0)
       }
       onResize()
       window.onresize = onResize
@@ -89,7 +88,7 @@ var Module = {
       let img
 
       const render = (timestamp) => {
-          const np = mod._render(timestamp);
+          const np = Module._render(timestamp);
           if (np !== pointer || refreshPointer === true) {
             pointer = np
             refreshPointer = false

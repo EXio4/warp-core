@@ -6,6 +6,8 @@ struct InputState {
     int right;
     int up;
     int down;
+    int lookup;
+    int lookdown;
 
     int x;
     int y;

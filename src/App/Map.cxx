@@ -3,13 +3,6 @@
 #include "App/Map.hpp"
 #include "App/utils.hpp"
 
-#define OCTAVES 8
-#define CHUNK_SIZE 64
-
-#define HEIGHT_RATIO 200
-#define HUMID_RATIO 2048
-#define TEMP_RATIO 1024
-
 std::map<TileType, uint32_t> colorMap = {
     { Grass, rgba(0x98, 0xdd, 0x00, 0xff) },
     { Water, rgba(0x00, 0xdd, 0xca, 0xff) },
@@ -24,7 +17,7 @@ std::map<TileType, uint32_t> colorMap = {
 };
 
 uint32_t getColor(TileType type) {
-    return colorMap[type] || rgba(0x00, 0x00, 0x00, 0xff);
+    return colorMap[type];
 }
 
 Map::Map() {
@@ -39,21 +32,20 @@ Map::Map(uint32_t seed) : heightNoise(seed), tempNoise(seed + 2), humidNoise(see
     sunlightAngle = M_PI/3;
 }
 
-TileData Map::genTile(double x, double y, bool calculateLight) {
+void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     TileBiome biome = BNormal;
     TileBehavior behavior = TSolid;
     TileType type = Water;
 
     double noise = 16 * (heightNoise.octaveNoise(x/HEIGHT_RATIO, y/HEIGHT_RATIO, OCTAVES) + 1) - 1;
     double humid = 50 * (humidNoise.octaveNoise(x/HUMID_RATIO, y/HUMID_RATIO, OCTAVES) + 1);
-    double temp  = 32.5 * (tempNoise.octaveNoise(x/TEMP_RATIO, y/TEMP_RATIO) + 1) - 15;
+    double temp  = 32.5 * (tempNoise.octaveNoise(x/TEMP_RATIO, y/TEMP_RATIO, OCTAVES) + 1) - 15;
 
     // range for values:
     // noise = 0-32
     // humid = 0 to 100
     // temp = -15 to 50
     if (temp <= 0) {
-
         biome = BIce;
         // icy 
         if (noise <= 6) {
@@ -63,7 +55,6 @@ TileData Map::genTile(double x, double y, bool calculateLight) {
             type = Snow;
         }
     } else if (temp <= 40) {
-    
         biome = BNormal;
         // normal
         if (humid <= 25 && noise <= 7) {
@@ -95,7 +86,6 @@ TileData Map::genTile(double x, double y, bool calculateLight) {
             type = Stone;
         }
     } else {
-
         biome = BHell;
         // hell-ish
         if (noise <= 6) {
@@ -111,36 +101,37 @@ TileData Map::genTile(double x, double y, bool calculateLight) {
     double light = sunlightBrightness;
 
     if (calculateLight) {
+        TileData temp;
         double maxDistance = 42/sin(sunlightAngle * M_PI/180);
         // cap the shadow stuff at this distance
         if (maxDistance > 20) maxDistance = 20;
         for (double dy = 0; dy < maxDistance; dy += 1) {
-            TileData tile = genTile(x, y + dy, false);
+            genTile(temp, x, y + dy, false);
             double delta = maxDistance + 20;
-            if (tile.height > height) {
+            if (temp.height > height) {
                 light = (sunlightBrightness - baselineBrightness) * (delta - dy) / delta;
                 break;
             }
         }
     }
 
-    printf("color: %x\n", getColor(type));
-    return TileData(biome, behavior, type, getColor(type), height, light);
+    res.biome = biome;
+    res.behavior = behavior;
+    res.type = type;
+    res.color = getColor(type);
+    res.height = height;
+    res.light = light;
 }
-MapChunk Map::mapgen(int32_t chunkX, int32_t chunkY) {
-    MapChunk chunk;
-
-    chunk.data.resize(CHUNK_SIZE * CHUNK_SIZE);
+void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
 
     for (int32_t dy = 0; dy < CHUNK_SIZE; dy++) {
         for (int32_t dx = 0; dx < CHUNK_SIZE; dx++) {
             double x = chunkX * CHUNK_SIZE + dx;
             double y = chunkY * CHUNK_SIZE + dy;
-            chunk.data[dx * CHUNK_SIZE + dy] = genTile(x, y, false);
+            genTile(chunk.data[dx * CHUNK_SIZE + dy], x, y, true);
         }
     }
-
-    return chunk;
+    chunk.initialized = true;
 }
 
 TileData Map::get(double _x, double _y) {
@@ -154,11 +145,13 @@ TileData Map::get(double _x, double _y) {
     uint32_t offsetY = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
 
     Vector2D pos = std::make_pair(chunkX, chunkY);
-    MapChunk chunk = cacheMap[pos];
-    if (chunk.data.size() == 0) {
-        // empty chunk, must recreate
-        chunk = mapgen(chunkX, chunkY);
-        cacheMap[pos] = chunk;
+    auto chunkIter = cacheMap.find(pos);
+    if (chunkIter != cacheMap.end()) {
+        return chunkIter->second.data[offsetX * CHUNK_SIZE + offsetY];
+    } else {
+        MapChunk chunk;
+        mapgen(chunk, chunkX, chunkY);
+        cacheMap.insert({ pos, chunk });
+        return chunk.data[offsetX * CHUNK_SIZE + offsetY];
     }
-    return chunk.data[offsetX * CHUNK_SIZE + offsetY];
 }

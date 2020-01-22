@@ -11,6 +11,7 @@ public:
     uint32_t* render(double timestamp);    
 private:
 
+    void updateCamera(double timestamp);
     void renderSky();
     void drawVLine(uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
 
@@ -20,4 +21,6 @@ private:
     uint32_t width;
     uint32_t height;
     uint32_t* data;
+
+    double old_timestamp = -1;
 };

@@ -9,6 +9,7 @@ extern "C" {
         
     void EMSCRIPTEN_KEEPALIVE initInput() {
         input.left = input.right = input.up = input.down = input.mouseClick = 0;
+        input.lookup = input.lookdown = 0;
         input.x = input.y = -1;
     }
 
@@ -30,7 +31,12 @@ extern "C" {
             case 39: // ArrowRight
                 input.right = state;
             break;
-            
+            case 81: // Q
+                input.lookup = state;
+            break;
+            case 69: // E
+                input.lookdown = state;
+            break;
 
 
         }
