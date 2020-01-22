@@ -1,2 +1,4 @@
 main.wasm
 main.js
+main.wast
+*.map
