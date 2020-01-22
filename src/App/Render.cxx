@@ -11,7 +11,7 @@ Render::Render() : map(1000), camera(
         206.88, // x
         192.58, // y
         180.96, // height
-        28.00,  // angle
+        M_PI/3,  // angle
         160.58, // horizon
         350     // distance
     ) {
@@ -57,7 +57,7 @@ void Render::updateCamera(double timestamp) {
     int leftright = input.left - input.right;
     int forwardbackward = 3 * (input.up - input.down);
     int updown = 2 * (input.lookup - input.lookdown);
-    double deltaTime = timestamp - old_timestamp;
+    double deltaTime = (timestamp - old_timestamp) / 1000;
     if (leftright != 0) {
         camera.angle += leftright * 0.1 * deltaTime * 0.03;
     }
@@ -87,14 +87,25 @@ void Render::updateCamera(double timestamp) {
     */
 }
 
-uint32_t applyLight (uint32_t color, double light) {
+uint32_t Render::applyEffects (uint32_t color, double light, double distanceRatio) {
     uint32_t r = (color & 0x000000ff);
     uint32_t g = (color & 0x0000ff00) >>  8;
     uint32_t b = (color & 0x00ff0000) >> 16;
+    // sky color
+    uint32_t skyR = 135;
+    uint32_t skyG = 206;
+    uint32_t skyB = 235;
     r = (r * light) / 100;
     g = (g * light) / 100;
     b = (b * light) / 100;
-    return rgba(r, g, b, 255);
+    if (distanceRatio < 0.05) {
+        return rgba(r, g, b, 255);
+    } else {
+        r = r * (1 - distanceRatio) + skyR * distanceRatio;
+        g = g * (1 - distanceRatio) + skyG * distanceRatio;
+        b = b * (1 - distanceRatio) + skyB * distanceRatio;
+        return rgba(r, g, b, 255);
+    }
 }
 
 uint32_t* Render::render(double timestamp) {
@@ -106,32 +117,38 @@ uint32_t* Render::render(double timestamp) {
 
     std::vector<uint32_t> hiddeny(width, height);
     double deltaz = 1;
-    double count = 0;
     for (double z=1; z<camera.distance; z+=deltaz) {
         double plx =  -cosang * z - sinang * z;
         double ply =   sinang * z - cosang * z;
         double prx =   cosang * z - sinang * z;
         double pry =  -sinang * z - cosang * z;
-        double dx = (prx - plx) / (0.0 + width);
-        double dy = (pry - ply) / (0.0 + width);
+
+        double dx = (prx - plx) / width;
+        double dy = (pry - ply) / width;
+
         plx += camera.x;
         ply += camera.y;
+
         double invz = (1 / z) * 240;
+        double distanceRatio = z / camera.distance;
+        if (distanceRatio < 0.25) {
+            distanceRatio = 0;
+        } else {
+            distanceRatio = (distanceRatio - 0.4) * (1/0.6);
+        }
 
         for (uint32_t i=0; i<width; i++) {
-            count++;
             TileData tile = map.get(plx, ply);
             double height = (camera.height - tile.height) * invz + camera.horizon;
-            drawVLine(i, height, hiddeny[i], applyLight(tile.color, tile.light));
+            drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
             if (height < hiddeny[i]) hiddeny[i] = height;
             plx += dx;
-            plx += dy;
+            ply += dy;
         }
 
         deltaz += 0.005;
     }
 
-    printf("map.get: %f\n", count);
 
     return data;
 }
