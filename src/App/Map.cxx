@@ -141,11 +141,11 @@ TileData Map::get(double _x, double _y) {
     int32_t chunkX = x / CHUNK_SIZE;
     int32_t chunkY = y / CHUNK_SIZE;
     // https://stackoverflow.com/questions/12276675/modulus-with-negative-numbers-in-c/21470301
-    uint32_t offsetX = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-    uint32_t offsetY = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    uint32_t offsetX = mod(x, CHUNK_SIZE);
+    uint32_t offsetY = mod(y, CHUNK_SIZE);
 
     Vector2D pos = std::make_pair(chunkX, chunkY);
-    auto chunkIter = cacheMap.find(pos);
+    const auto& chunkIter = cacheMap.find(pos);
     if (chunkIter != cacheMap.end()) {
         return chunkIter->second.data[offsetX * CHUNK_SIZE + offsetY];
     } else {
