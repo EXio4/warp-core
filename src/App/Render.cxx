@@ -11,7 +11,7 @@ Render::Render() : map(1000), camera(
         206.88, // x
         192.58, // y
         180.96, // height
-        M_PI/3,  // angle
+        M_PI/2,  // angle
         160.58, // horizon
         350     // distance
     ) {
@@ -149,49 +149,5 @@ uint32_t* Render::render(double timestamp) {
         deltaz += 0.005;
     }
 
-
     return data;
 }
-
-/*
-let sinang = Math.sin(camera.angle);
-        let cosang = Math.cos(camera.angle);
-    
-        let hiddeny = new uint32_t32Array(screenwidth);
-        for(let i=0; i<screendata.current.canvas.width|0; i=i+1|0)
-            hiddeny[i] = screendata.current.canvas.height;
-    
-        let deltaz = 1.;
-    
-        // Draw from front to back
-        for(let z=1; z<camera.distance; z+=deltaz)
-        {
-
-            // 90 degree field of view
-            let plx =  -cosang * z - sinang * z;
-            let ply =   sinang * z - cosang * z;
-            let prx =   cosang * z - sinang * z;
-            let pry =  -sinang * z - cosang * z;
-    
-            let dx = (prx - plx) / screenwidth;
-            let dy = (pry - ply) / screenwidth;
-            plx += camera.x;
-            ply += camera.y;
-            let invz = 1. / z * 240.;
-            for(let i=0; i<screenwidth|0; i=i+1|0)
-            {
-                const data = info.current.getData(plx, ply)
-                // type is meant to be used for:
-                // - animations
-                // - things
-                // no idea really, actually, seems useful later
-                const heightonscreen = (camera.height - data.altitude) * invz + camera.horizon|0;
-                voxelDrawLine(i, heightonscreen|0, hiddeny[i], data.color);
-                if (heightonscreen < hiddeny[i]) hiddeny[i] = heightonscreen;
-                plx += dx;
-                ply += dy;
-            }
-            deltaz += 0.005;
-
-        }
-*/

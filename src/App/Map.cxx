@@ -99,17 +99,19 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
 
     int32_t height = noise * 6;
     double light = sunlightBrightness;
+    uint32_t color = getColor(type);
 
     if (calculateLight) {
         TileData temp;
         double maxDistance = 42/sin(sunlightAngle * M_PI/180);
         // cap the shadow stuff at this distance
-        if (maxDistance > 20) maxDistance = 20;
+        if (maxDistance > 30) maxDistance = 30;
         for (double dy = 0; dy < maxDistance; dy += 1) {
             genTile(temp, x, y + dy, false);
-            double delta = maxDistance + 20;
+            double delta = maxDistance;
             if (temp.height > height) {
-                light = (sunlightBrightness - baselineBrightness) * (delta - dy) / delta;
+                light = baselineBrightness + (sunlightBrightness - baselineBrightness) * (1 - (delta - dy) / delta);
+                // light = (sunlightBrightness - baselineBrightness) * ((delta - dy) / delta);
                 break;
             }
         }
@@ -118,7 +120,7 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     res.biome = biome;
     res.behavior = behavior;
     res.type = type;
-    res.color = getColor(type);
+    res.color = color;
     res.height = height;
     res.light = light;
 }
@@ -135,22 +137,20 @@ void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
 }
 
 TileData Map::get(double _x, double _y) {
-    int32_t x = _x;
-    int32_t y = _y;
-
-    div_t pX = div_floor(x, CHUNK_SIZE);
-    div_t pY = div_floor(y, CHUNK_SIZE);
+    const div_t& pX = div_floor(_x, CHUNK_SIZE);
+    const div_t& pY = div_floor(_y, CHUNK_SIZE);
 
     int32_t chunkX = pX.quot;
     int32_t chunkY = pY.quot;
     uint32_t offsetX = pX.rem;
     uint32_t offsetY = pY.rem;
 
-    Vector2D pos = std::make_pair(chunkX, chunkY);
-    const auto& chunkIter = cacheMap.find(pos);
+    
+    const auto& chunkIter = cacheMap.find({ chunkX, chunkY });
     if (chunkIter != cacheMap.end()) {
         return chunkIter->second.data[offsetX * CHUNK_SIZE + offsetY];
     } else {
+        Vector2D pos = std::make_pair(chunkX, chunkY);
         MapChunk chunk;
         mapgen(chunk, chunkX, chunkY);
         cacheMap.insert({ pos, chunk });

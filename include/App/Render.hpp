@@ -15,6 +15,8 @@ private:
     void renderSky();
     void drawVLine(uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
 
+    uint32_t applyEffects (uint32_t color, double light, double distanceRatio);
+
     Map map;
     Camera camera;
 
