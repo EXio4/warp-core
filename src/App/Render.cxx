@@ -57,7 +57,7 @@ void Render::updateCamera(double timestamp) {
     int leftright = input.left - input.right;
     int forwardbackward = 3 * (input.up - input.down);
     int updown = 2 * (input.lookup - input.lookdown);
-    double deltaTime = (timestamp - old_timestamp) / 1000;
+    double deltaTime = 1.2 * (timestamp - old_timestamp);
     if (leftright != 0) {
         camera.angle += leftright * 0.1 * deltaTime * 0.03;
     }
@@ -68,6 +68,7 @@ void Render::updateCamera(double timestamp) {
     if (updown != 0) {
       camera.height += updown * deltaTime * 0.03;
     }
+    old_timestamp = timestamp;
     /*
       const newTime = new Date().getTime()
   const newCamera = { ...state.camera }
