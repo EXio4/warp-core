@@ -4,4 +4,4 @@ VoxelSpace-ish implementation in C/WASM, taking a lot of inspiration (and code) 
 
 ### Other things
 
-Noise implementation from https://github.com/Auburns/FastNoise/ (MIT)
+Perlin Noise implementation taken from: https://github.com/Reputeless/PerlinNoise (MIT)
