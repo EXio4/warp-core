@@ -1,4 +1,6 @@
 #include <cstdint>
+#include <stdio.h>
+#include <cmath>
 
 #include "App/Map.hpp"
 #include "App/utils.hpp"
@@ -21,83 +23,244 @@ uint32_t getColor(TileType type) {
 }
 
 Map::Map() {
+
+    heightNoise.SetNoiseType(FastNoise::Perlin);
+    tempNoise.SetNoiseType(FastNoise::Perlin);
+    biomeNoise.SetNoiseType(FastNoise::Perlin);
+    extraNoise.SetNoiseType(FastNoise::Perlin);
+
     baselineBrightness = 20;
     sunlightBrightness = 100;
     sunlightAngle = M_PI/3;
 }
 
-Map::Map(uint32_t seed) : heightNoise(seed), tempNoise(seed + 2), humidNoise(seed + 3), extraNoise(seed + 4) {
+Map::Map(uint32_t seed) {
+    heightNoise.SetSeed(seed);
+    tempNoise.SetSeed(3*seed + 2);
+    biomeNoise.SetSeed(5*seed + 3);
+    extraNoise.SetSeed(7*seed + 4);
+
+    heightNoise.SetNoiseType(FastNoise::ValueFractal);
+    heightNoise.SetFrequency(1./HEIGHT_RATIO);
+    heightNoise.SetFractalOctaves(8);
+    tempNoise.SetNoiseType(FastNoise::SimplexFractal);
+    tempNoise.SetFractalOctaves(5);
+    tempNoise.SetFrequency(1./TEMP_RATIO);
+    biomeNoise.SetNoiseType(FastNoise::SimplexFractal);
+    biomeNoise.SetFractalOctaves(4);
+    biomeNoise.SetFrequency(1./BIOME_RATIO);
+    extraNoise.SetNoiseType(FastNoise::PerlinFractal);
+
     baselineBrightness = 20;
     sunlightBrightness = 100;
     sunlightAngle = M_PI/3;
 }
 
 void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
-    TileBiome biome = BNormal;
+    TileBiome biome = BFields;
     TileBehavior behavior = TSolid;
     TileType type = Water;
 
-    double noise = 16 * (heightNoise.octaveNoise(x/HEIGHT_RATIO, y/HEIGHT_RATIO, OCTAVES) + 1) - 1;
-    double humid = 50 * (humidNoise.octaveNoise(x/HUMID_RATIO, y/HUMID_RATIO, OCTAVES) + 1);
-    double temp  = 32.5 * (tempNoise.octaveNoise(x/TEMP_RATIO, y/TEMP_RATIO, OCTAVES) + 1) - 15;
 
-    // range for values:
-    // noise = 0-32
-    // humid = 0 to 100
-    // temp = -15 to 50
-    if (temp <= 0) {
+    double baseHeightN = 80 * (heightNoise.GetNoise(x, y) + 1);
+    double biomeN = 50 * (biomeNoise.GetNoise(x, y) + 1.2);
+    double internalBiomeN  = 32.5 * (tempNoise.GetNoise(x, y) + 1) - 15;
+
+    double ratio = 100;
+    {
+        double x = biomeN;
+        if (x >= 0 && x < 2) {
+            ratio = -0.9587529719497954*x*x*x-4.13559879838381e-59*x*x+3.8350118877991815*x+100;
+        } else if (x < 5) {
+            ratio = 0.9178789560031126*x*x*x-11.259791567717448*x*x+26.35459502323408*x+84.98694457637674;
+        } else if (x < 20) {
+            ratio = -0.07803033762028887*x*x*x+3.678847836633574*x*x-48.338601998521035*x+209.47560627930193;
+        } else if (x < 24) {
+            ratio = 0.08331145999123345*x*x*x-6.0016600200577646*x*x+145.27155513530573*x-1081.2587746128766;
+        } else if (x < 50) {
+            ratio = -0.0010138376255269096*x*x*x+0.06976140834898119*x*x-0.4425591464561576*x+84.45413964121862;
+        } else if (x < 80) {
+            ratio = +0.003562549148975762*x*x*x-0.6166966078264196*x*x+33.88034166231388*x-487.5942071716154;
+        } else if (x < 90) {
+            ratio = -0.009929799496990138*x*x*x+2.621467067205397*x*x-225.17275234023143*x+6420.488299562926;
+        } else {
+            ratio = 0.0019859598993980277*x*x*x-0.5957879698194083*x*x+64.38020099200104*x-2266.1003004040476;
+        }
+    }
+    double height = baseHeightN; // * (ratio / 100);
+
+    // the biome affects the baseHeight as a modifier, by a different margin depending on where it is based on the spline interpolation by:
+    /*
+        0 100
+        2 100
+        5 50
+        20 90
+        24 100
+        50 110
+        80 100
+        90 150
+        100 200
+    */
+    // biome 
+    // [0;5) island
+    // [5;20) ocean
+    // [20;24) beach
+    // [24;90) "rest"
+    // [90;100] mountain
+    // internalBiome defines what we see on the main biome, and it's basically a temperature ratio mixed in with other stuff
+    // [-15; 0) frozen/icy (might be a frozen lake, snow island, or such)
+    // [0;2) transition phase
+    // [2; 26) normal, defines grass fields, and forests
+    // [26; 33) transition phase
+    // [33; 37) deserts
+    // [37; 40) transition phase
+    // [40; 50] hell 
+
+    // sea level is defined at lvl 30
+
+    if (internalBiomeN <= 0) {
         biome = BIce;
-        // icy 
-        if (noise <= 6) {
+        if (height <= 30) {
             type = Ice;
-            noise = 5;
         } else {
             type = Snow;
         }
-    } else if (temp <= 40) {
-        biome = BNormal;
-        // normal
-        if (humid <= 25 && noise <= 7) {
-            // adjust water level due to humidity
-            noise += 5 * (25-humid)/25;
+    } else if (internalBiomeN < 2) {
+        biome = BIce;
+        if (height <= 30) {
+            type = Water;
+        } else {
+            type = Snow;
         }
-        if (noise <= 6) {
-            if (temp <= 2.5) {
-                biome = BIce;
-                type = Ice;
-            } else if (temp <= 38) {
-                type = Water;
-                behavior = TReflectiveLiquid;
-            } else {
-                biome = BHell;
-                type = Lava;
-                behavior = TLiquid;
-            }
-            noise = 5;
-        } else if (humid <= 25) {
-            biome = BDesert;
-            type = DesertSand;
-        } else if (noise <= 15) {
-            biome = BDesert;
+    } else if (internalBiomeN < 26) {
+        biome = BFields;
+        if (height <= 30) {
+            type = Water;
+        } else if (height <= 40) {
             type = Sand;
-        } else if (noise <= 25) {
+        } else if (height <= 170) {
             type = Grass;
+        } else if (height <= 200) {
+            type = Dirt;
         } else {
             type = Stone;
         }
-    } else {
-        biome = BHell;
-        // hell-ish
-        if (noise <= 6) {
-            type = Lava;
-            noise = 5;
-            behavior = TLiquid;
+    } else if (internalBiomeN < 33) {
+        biome = BDesert;
+        if (height <= 30) {
+            type = Water;
+        } else if (height <= 50) {
+            type = Sand;
+        } else if (height <= 150) {
+            type = DesertSand;
+        } else if (height <= 200) {
+            type = Stone;
         } else {
             type = VolcanicRock;
         }
+    } else if (internalBiomeN < 37) {
+        biome = BDesert;
+        if (height <= 30) {
+            type = Water;
+        } else if (height <= 50) {
+            type = Sand;
+        } else if (height <= 170) {
+            type = DesertSand;
+        } else if (height <= 200) {
+            type = Stone;
+        } else {
+            type = VolcanicRock;
+        }
+    } else {
+        biome = BHell;
+        if (height <= 30) {
+            type = Lava;
+        } else if (height <= 50) {
+            type = VolcanicRock;
+        } else if (height <= 170) {
+            type = Stone;
+        } else if (height <= 200) {
+            type = VolcanicRock;
+        } else {
+            type = Stone;
+        }
+    }
+    // override biome for correct definition
+    if (biomeN <= 4) {
+        biome = BIsland;
+    } else if (biomeN <= 20) {
+        biome = BOcean;
+    } else if (biomeN >= 90) {
+        biome = BMountains;
     }
 
-    int32_t height = noise * 6;
+    if (type == Water) {
+        behavior = TReflectiveLiquid;
+    }
+    if (type == Lava) {
+        behavior = TLiquid;
+    }
+
+    height *= 1.25;
+
+    // range for values:
+    // baseHeight = 0-200
+    // biome = 0 to 100
+    // temp = -15 to 50
+
+
+    // if (temp <= 0) {
+    //     biome = BIce;
+    //     // icy 
+    //     if (noise <= 6) {
+    //         type = Ice;
+    //         noise = 5;
+    //     } else {
+    //         type = Snow;
+    //     }
+    // } else if (temp <= 40) {
+    //     biome = BNormal;
+    //     // normal
+    //     if (humid <= 25 && noise <= 7) {
+    //         // adjust water level due to humidity
+    //         noise += 5 * (25-humid)/25;
+    //     }
+    //     if (noise <= 6) {
+    //         if (temp <= 2.5) {
+    //             biome = BIce;
+    //             type = Ice;
+    //         } else if (temp <= 38) {
+    //             type = Water;
+    //             behavior = TReflectiveLiquid;
+    //         } else {
+    //             biome = BHell;
+    //             type = Lava;
+    //             behavior = TLiquid;
+    //         }
+    //         noise = 5;
+    //     } else if (humid <= 25) {
+    //         biome = BDesert;
+    //         type = DesertSand;
+    //     } else if (noise <= 15) {
+    //         biome = BDesert;
+    //         type = Sand;
+    //     } else if (noise <= 25) {
+    //         type = Grass;
+    //     } else {
+    //         type = Stone;
+    //     }
+    // } else {
+    //     biome = BHell;
+    //     // hell-ish
+    //     if (noise <= 6) {
+    //         type = Lava;
+    //         noise = 5;
+    //         behavior = TLiquid;
+    //     } else {
+    //         type = VolcanicRock;
+    //     }
+    // }
+
     double light = sunlightBrightness;
     uint32_t color = getColor(type);
 

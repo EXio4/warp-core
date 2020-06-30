@@ -10,10 +10,10 @@
 Render::Render() : map(1000), camera(
         206.88, // x
         192.58, // y
-        180.96, // height
+        300.96, // height
         M_PI/2,  // angle
-        160.58, // horizon
-        350     // distance
+        40.58, // horizon
+        650     // distance
     ) {
     width = 0;
     height = 0;
@@ -57,7 +57,7 @@ void Render::updateCamera(double timestamp) {
     int leftright = input.left - input.right;
     int forwardbackward = 3 * (input.up - input.down);
     int updown = 2 * (input.lookup - input.lookdown);
-    double deltaTime = (timestamp - old_timestamp) / 1000;
+    double deltaTime = 1.2 * (timestamp - old_timestamp);
     if (leftright != 0) {
         camera.angle += leftright * 0.1 * deltaTime * 0.03;
     }
@@ -68,23 +68,7 @@ void Render::updateCamera(double timestamp) {
     if (updown != 0) {
       camera.height += updown * deltaTime * 0.03;
     }
-    /*
-      const newTime = new Date().getTime()
-  const newCamera = { ...state.camera }
-  if (state.input.leftright !== 0) {
-      newCamera.angle += state.input.leftright*0.1*(newTime-state.lastTime)*0.03;
-  }
-  if (state.input.forwardbackward !== 0) {
-      newCamera.x -= state.input.forwardbackward * Math.sin(newCamera.angle) * (newTime-state.lastTime)*0.03;
-      newCamera.y -= state.input.forwardbackward * Math.cos(newCamera.angle) * (newTime-state.lastTime)*0.03;
-  }
-  if (state.input.updown !== 0) {
-      newCamera.height += state.input.updown * (newTime-state.lastTime)*0.03
-  }
-  if (state.input.look !== 0) {
-    newCamera.horizon += state.input.look * (newTime-state.lastTime)*0.03;
-  }
-    */
+    old_timestamp = timestamp;
 }
 
 uint32_t Render::applyEffects (uint32_t color, double light, double distanceRatio) {
@@ -131,16 +115,18 @@ uint32_t* Render::render(double timestamp) {
 
         double invz = (1 / z) * 240;
         double distanceRatio = z / camera.distance;
-        if (distanceRatio < 0.25) {
+        /*if (distanceRatio < 0.25) {
             distanceRatio = 0;
         } else {
             distanceRatio = (distanceRatio - 0.4) * (1/0.6);
-        }
+        }*/
+        int distanceColor = rgba(0, 0, 0, 255);
 
         for (uint32_t i=0; i<width; i++) {
             TileData tile = map.get(plx, ply);
             double height = (camera.height - tile.height) * invz + camera.horizon;
-            drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
+            // drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
+            drawVLine(i, height, hiddeny[i], applyEffects(distanceColor, 100, distanceRatio));
             if (height < hiddeny[i]) hiddeny[i] = height;
             plx += dx;
             ply += dy;

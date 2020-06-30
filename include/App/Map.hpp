@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <utility> // for std::pair
 #include <map>
-#include "Ext/PerlinNoise.hpp"
+#include "Ext/FastNoise.h"
 
 #define OCTAVES 8
 #define CHUNK_SIZE 64
 
 #define HEIGHT_RATIO 200
-#define HUMID_RATIO 2048
+#define BIOME_RATIO 2048
 #define TEMP_RATIO 1024
 
 // implement this
@@ -24,8 +24,11 @@ enum TileBehavior {
 enum TileBiome {
     BHell,
     BDesert,
+    BIsland,
+    BOcean,
     BIce,
-    BNormal,
+    BFields,
+    BMountains,
 };
 
 enum TileType {
@@ -74,9 +77,9 @@ private:
 
     std::map<Vector2D, MapChunk> cacheMap;
 
-    siv::PerlinNoise heightNoise;
-    siv::PerlinNoise humidNoise;
-    siv::PerlinNoise tempNoise;
-    siv::PerlinNoise extraNoise;
+    FastNoise heightNoise;
+    FastNoise biomeNoise;
+    FastNoise tempNoise;
+    FastNoise extraNoise;
 
 };
