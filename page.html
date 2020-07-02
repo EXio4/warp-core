@@ -75,6 +75,7 @@ var Module = {
 
       // initialize routines
       Module._initInput()
+      Module._initRender()
 
       canvas.onkeydown    = function (e) {
         Module._processKey(e.keyCode, 1)
@@ -86,8 +87,8 @@ var Module = {
       window.onresize = onResize
 
 
-      const render = (timestamp) => {
-          const np = Module._render(timestamp);
+      const render = () => {
+          const np = Module._render();
           if (np) {
             const data = new Uint8ClampedArray(memory.buffer, np, width * height * 4);
             img.data.set(data); 

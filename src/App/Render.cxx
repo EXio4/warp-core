@@ -18,6 +18,10 @@ Render::Render() : map(1000), camera(
     width = 0;
     height = 0;
     data = 0;
+    lastFrame = std::chrono::steady_clock::now();
+}
+
+void Render::startThread() {
 }
 
 void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
@@ -48,16 +52,14 @@ void Render::drawVLine(uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t col
     }
 }
 
-void Render::updateCamera(double timestamp) {
-    if (old_timestamp < 0) {
-        old_timestamp = timestamp;
-        return;
-    }
+void Render::updateCamera() {
+    auto currentFrame = std::chrono::steady_clock::now();
+    const std::chrono::duration<double, std::milli> deltaFrames = currentFrame - lastFrame;
 
     int leftright = input.left - input.right;
     int forwardbackward = 3 * (input.up - input.down);
     int updown = 2 * (input.lookup - input.lookdown);
-    double deltaTime = 1.2 * (timestamp - old_timestamp);
+    double deltaTime = 1.2 * deltaFrames.count();
     if (leftright != 0) {
         camera.angle += leftright * 0.1 * deltaTime * 0.03;
     }
@@ -68,24 +70,8 @@ void Render::updateCamera(double timestamp) {
     if (updown != 0) {
       camera.height += updown * deltaTime * 0.03;
     }
-    old_timestamp = timestamp;
-    /*
-      const newTime = new Date().getTime()
-  const newCamera = { ...state.camera }
-  if (state.input.leftright !== 0) {
-      newCamera.angle += state.input.leftright*0.1*(newTime-state.lastTime)*0.03;
-  }
-  if (state.input.forwardbackward !== 0) {
-      newCamera.x -= state.input.forwardbackward * Math.sin(newCamera.angle) * (newTime-state.lastTime)*0.03;
-      newCamera.y -= state.input.forwardbackward * Math.cos(newCamera.angle) * (newTime-state.lastTime)*0.03;
-  }
-  if (state.input.updown !== 0) {
-      newCamera.height += state.input.updown * (newTime-state.lastTime)*0.03
-  }
-  if (state.input.look !== 0) {
-    newCamera.horizon += state.input.look * (newTime-state.lastTime)*0.03;
-  }
-    */
+
+    lastFrame = currentFrame;
 }
 
 uint32_t Render::applyEffects (uint32_t color, double light, double distanceRatio) {
@@ -109,8 +95,8 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
     }
 }
 
-uint32_t* Render::render(double timestamp) {
-    updateCamera(timestamp);
+uint32_t* Render::render() {
+    updateCamera();
     renderSky();
 
     double sinang = sin(camera.angle);
