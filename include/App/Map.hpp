@@ -6,7 +6,7 @@
 #include "Ext/PerlinNoise.hpp"
 
 #define OCTAVES 8
-#define CHUNK_SIZE 64
+#define CHUNK_SIZE 256
 
 #define HEIGHT_RATIO 200
 #define HUMID_RATIO 2048
@@ -55,6 +55,9 @@ using Vector2D = std::pair<int32_t, int32_t>;
 struct MapChunk {
     bool initialized;
     TileData data[CHUNK_SIZE*CHUNK_SIZE];
+
+    TileData rawGet(uint32_t offsetX, uint32_t offsetY);
+    TileData get(uint32_t offsetX, uint32_t offsetY, double x, double y);
 };
 
 class Map {

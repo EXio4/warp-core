@@ -163,7 +163,7 @@ void Render::renderLoop() {
 
             double invz = (1 / z) * 240;
             double distanceRatio = z / camera.distance;
-            if (distanceRatio < 0.25) {
+            if (distanceRatio < 0.4) {
                 distanceRatio = 0;
             } else {
                 distanceRatio = (distanceRatio - 0.4) * (1/0.6);

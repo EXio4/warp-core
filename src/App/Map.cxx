@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <cstdint>
 
 #include "App/Map.hpp"
@@ -155,6 +156,70 @@ void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
     chunk.initialized = true;
 }
 
+TileData MapChunk::rawGet(uint32_t offsetX, uint32_t offsetY) {
+    if (offsetX < 0) offsetX = 0;
+    if (offsetY < 0) offsetY = 0;
+    if (offsetX >= CHUNK_SIZE) offsetX = CHUNK_SIZE - 1;
+    if (offsetY >= CHUNK_SIZE) offsetY = CHUNK_SIZE - 1;
+    return data[offsetX * CHUNK_SIZE + offsetY];
+}
+
+TileData MapChunk::get(uint32_t offsetX, uint32_t offsetY, double x, double y) {
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (offsetX > x) {
+        offsetX --;
+
+    }
+    if (offsetY > y) {
+        offsetY --;
+    }
+    TileData t = rawGet(offsetX, offsetY);
+    TileData t_y = rawGet(offsetX, offsetY + 1);
+    TileData t_x = rawGet(offsetX + 1, offsetY);
+    TileData t_xy = rawGet(offsetX + 1, offsetY + 1);
+
+    TileData ret;
+    ret.biome = t.biome;
+    ret.behavior = t.behavior;
+    ret.type = t.type;
+    
+    uint32_t r_0 = (t.color & 0x000000ff);
+    uint32_t g_0 = (t.color & 0x0000ff00) >>  8;
+    uint32_t b_0 = (t.color & 0x00ff0000) >> 16;
+
+    
+    uint32_t r_x = (t_x.color & 0x000000ff);
+    uint32_t g_x = (t_x.color & 0x0000ff00) >>  8;
+    uint32_t b_x = (t_x.color & 0x00ff0000) >> 16;
+
+    
+    uint32_t r_y = (t_y.color & 0x000000ff);
+    uint32_t g_y = (t_y.color & 0x0000ff00) >>  8;
+    uint32_t b_y = (t_y.color & 0x00ff0000) >> 16;
+
+    
+    uint32_t r_xy = (t_xy.color & 0x000000ff);
+    uint32_t g_xy = (t_xy.color & 0x0000ff00) >>  8;
+    uint32_t b_xy = (t_xy.color & 0x00ff0000) >> 16;
+
+
+    if (t.behavior != t_y.behavior || t.behavior != t_x.behavior || t.behavior != t_xy.behavior) {
+        ret.color = t.color;
+        ret.height = t.height;
+    } else {
+        ret.color = rgba(
+            BilinearInterpolation(r_y, r_0, r_xy, r_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
+            BilinearInterpolation(g_y, g_0, g_xy, g_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
+            BilinearInterpolation(b_y, b_0, b_xy, b_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
+            0xff
+        );    
+        ret.height = BilinearInterpolation(t_y.height, t.height, t_xy.height, t_x.height, offsetX, offsetX+1, offsetY+1, offsetY, x, y);
+    }
+    ret.light = BilinearInterpolation(t_y.light, t.light, t_xy.light, t_x.light, offsetX, offsetX+1, offsetY+1, offsetY, x, y);
+    return ret;
+}
+
 TileData Map::get(double _x, double _y) {
     const div_t& pX = div_floor(_x, CHUNK_SIZE);
     const div_t& pY = div_floor(_y, CHUNK_SIZE);
@@ -163,16 +228,18 @@ TileData Map::get(double _x, double _y) {
     int32_t chunkY = pY.quot;
     uint32_t offsetX = pX.rem;
     uint32_t offsetY = pY.rem;
+    double px = _x - chunkX * CHUNK_SIZE;
+    double py = _y - chunkY * CHUNK_SIZE;
 
     
     const auto& chunkIter = cacheMap.find({ chunkX, chunkY });
     if (chunkIter != cacheMap.end()) {
-        return chunkIter->second.data[offsetX * CHUNK_SIZE + offsetY];
+        return chunkIter->second.get(offsetX, offsetY, px, py);
     } else {
         Vector2D pos = std::make_pair(chunkX, chunkY);
         MapChunk chunk;
         mapgen(chunk, chunkX, chunkY);
         cacheMap.insert({ pos, chunk });
-        return chunk.data[offsetX * CHUNK_SIZE + offsetY];
+        return chunk.get(offsetX, offsetY, px, py);
     }
 }
