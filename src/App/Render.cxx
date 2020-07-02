@@ -17,9 +17,19 @@ Render::Render() : map(1000), camera(
     ) {
     width = 0;
     height = 0;
-    data = 0;
+    
+    buffer[0] = 0;
+    buffer[1] = 0;
+    buffer[2] = 0;
+
+
+    renderBuffer = 0;
+    lastBuffer = 1;
+    readyBuffer = 2;
+
     lastFrame = std::chrono::steady_clock::now();
     keepRender = true;
+
 }
 
 Render::~Render() {
@@ -35,20 +45,38 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   width = cWidth;
   height = cHeight;
   uint32_t pixelCount = width * height;
-  if (data != 0) {
-    delete[] data;
+  for (int i = 0; i < 3; i++) {
+      if (buffer[i] != 0) {
+          delete[] buffer[i];
+      }
+      buffer[i] = new uint32_t[pixelCount];
   }
-  data = new uint32_t[pixelCount];
 }
 
-void Render::renderSky() {
+void Render::renderSky(uint32_t* data) {
     uint32_t skyColor = rgba(135, 206, 235, 255);
     for (uint32_t i=0; i<width*height; i++) {
         data[i] = skyColor;
     }
 }
 
-void Render::drawVLine(uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color) {
+uint32_t* Render::finishRender() {
+    std::unique_lock<std::shared_mutex> lock(buffer_mutex_);
+    int nextBuffer = lastBuffer;
+    lastBuffer = renderBuffer;
+    renderBuffer = nextBuffer;
+    return buffer[renderBuffer];
+}
+
+uint32_t* Render::getRenderedFrame() {
+    std::unique_lock<std::shared_mutex> lock(buffer_mutex_);
+    int nextBuffer = lastBuffer;
+    lastBuffer = readyBuffer;
+    readyBuffer = nextBuffer;
+    return buffer[readyBuffer];
+}
+
+void Render::drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color) {
     if (ytop < 0) ytop = 0;
     if (ytop > ybottom) return;
 
@@ -102,14 +130,11 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
     }
 }
 
-uint32_t* Render::getRenderedFrame() {
-    return data;
-}
-
 void Render::renderLoop() {
     while (keepRender) {
+        uint32_t* data = finishRender();
         updateCamera();
-        renderSky();
+        renderSky(data);
 
         double sinang = sin(camera.angle);
         double cosang = cos(camera.angle);
@@ -139,7 +164,7 @@ void Render::renderLoop() {
             for (uint32_t i=0; i<width; i++) {
                 TileData tile = map.get(plx, ply);
                 double height = (camera.height - tile.height) * invz + camera.horizon;
-                drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
+                drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
                 if (height < hiddeny[i]) hiddeny[i] = height;
                 plx += dx;
                 ply += dy;
