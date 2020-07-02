@@ -32,7 +32,7 @@ uint32_t getColor(TileType type, double colorNoise) {
         case Lava:
             return rgb_with_noise(colorNoise, 0xcf, 0x10, 0x20);
         case VolcanicRock:
-            return rgb_with_noise(colorNoise, 0x3d, 0x3f, 0xff);
+            return rgb_with_noise(colorNoise, 0x3d, 0x3f, 0x3f);
         default:
             return rgba(0, 0, 0, 0xff);
     }
