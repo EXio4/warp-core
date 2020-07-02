@@ -62,11 +62,13 @@ var Module = {
         throw 'Your browser does not support canvas';
       }
 
+      let img
+
       const onResize = () => {
         width = Math.floor(window.innerWidth)
         height = Math.floor(window.innerHeight)
+        img = ctx.createImageData(width, height)
         Module._updateCanvas(width, height);
-        refreshPointer = true
         canvas.width = width
         canvas.height = height
       }
@@ -83,17 +85,12 @@ var Module = {
       onResize()
       window.onresize = onResize
 
-      let pointer
-      let data
-      let img
 
       const render = (timestamp) => {
           const np = Module._render(timestamp);
-          if (np !== pointer || refreshPointer === true) {
-            pointer = np
-            refreshPointer = false
-            data = new Uint8ClampedArray(memory.buffer, pointer, width * height * 4);
-            img = new ImageData(data, width, height);
+          if (np) {
+            const data = new Uint8ClampedArray(memory.buffer, np, width * height * 4);
+            img.data.set(data); 
           }
           if (img) {
             ctx.putImageData(img, 0, 0);
