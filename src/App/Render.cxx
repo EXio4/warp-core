@@ -19,9 +19,16 @@ Render::Render() : map(1000), camera(
     height = 0;
     data = 0;
     lastFrame = std::chrono::steady_clock::now();
+    keepRender = true;
+}
+
+Render::~Render() {
+    keepRender = false;
+    renderThread.join();
 }
 
 void Render::startThread() {
+    renderThread = std::thread(&Render::renderLoop, &*this);
 }
 
 void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
@@ -95,46 +102,50 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
     }
 }
 
-uint32_t* Render::render() {
-    updateCamera();
-    renderSky();
-
-    double sinang = sin(camera.angle);
-    double cosang = cos(camera.angle);
-
-    std::vector<uint32_t> hiddeny(width, height);
-    double deltaz = 1;
-    for (double z=1; z<camera.distance; z+=deltaz) {
-        double plx =  -cosang * z - sinang * z;
-        double ply =   sinang * z - cosang * z;
-        double prx =   cosang * z - sinang * z;
-        double pry =  -sinang * z - cosang * z;
-
-        double dx = (prx - plx) / width;
-        double dy = (pry - ply) / width;
-
-        plx += camera.x;
-        ply += camera.y;
-
-        double invz = (1 / z) * 240;
-        double distanceRatio = z / camera.distance;
-        if (distanceRatio < 0.25) {
-            distanceRatio = 0;
-        } else {
-            distanceRatio = (distanceRatio - 0.4) * (1/0.6);
-        }
-
-        for (uint32_t i=0; i<width; i++) {
-            TileData tile = map.get(plx, ply);
-            double height = (camera.height - tile.height) * invz + camera.horizon;
-            drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
-            if (height < hiddeny[i]) hiddeny[i] = height;
-            plx += dx;
-            ply += dy;
-        }
-
-        deltaz += 0.005;
-    }
-
+uint32_t* Render::getRenderedFrame() {
     return data;
+}
+
+void Render::renderLoop() {
+    while (keepRender) {
+        updateCamera();
+        renderSky();
+
+        double sinang = sin(camera.angle);
+        double cosang = cos(camera.angle);
+
+        std::vector<uint32_t> hiddeny(width, height);
+        double deltaz = 1;
+        for (double z=1; z<camera.distance; z+=deltaz) {
+            double plx =  -cosang * z - sinang * z;
+            double ply =   sinang * z - cosang * z;
+            double prx =   cosang * z - sinang * z;
+            double pry =  -sinang * z - cosang * z;
+
+            double dx = (prx - plx) / width;
+            double dy = (pry - ply) / width;
+
+            plx += camera.x;
+            ply += camera.y;
+
+            double invz = (1 / z) * 240;
+            double distanceRatio = z / camera.distance;
+            if (distanceRatio < 0.25) {
+                distanceRatio = 0;
+            } else {
+                distanceRatio = (distanceRatio - 0.4) * (1/0.6);
+            }
+
+            for (uint32_t i=0; i<width; i++) {
+                TileData tile = map.get(plx, ply);
+                double height = (camera.height - tile.height) * invz + camera.horizon;
+                drawVLine(i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
+                if (height < hiddeny[i]) hiddeny[i] = height;
+                plx += dx;
+                ply += dy;
+            }
+
+            deltaz += 0.005;
+        }
+    }
 }
