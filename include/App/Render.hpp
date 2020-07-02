@@ -35,9 +35,12 @@ private:
 
     mutable std::shared_mutex buffer_mutex_;
     uint32_t* buffer[3];
-    int renderBuffer;
-    int readyBuffer;
-    int lastBuffer;
+    uint8_t renderBuffer;
+    uint8_t readyBuffer;
+    uint8_t lastBuffer;
+    
+    uint32_t frameCount;
+    uint32_t lastRender;
 
     uint32_t* finishRender();
 

@@ -30,6 +30,8 @@ Render::Render() : map(1000), camera(
     lastFrame = std::chrono::steady_clock::now();
     keepRender = true;
 
+    frameCount = 0;
+    lastRender = -1;
 }
 
 Render::~Render() {
@@ -65,11 +67,17 @@ uint32_t* Render::finishRender() {
     int nextBuffer = lastBuffer;
     lastBuffer = renderBuffer;
     renderBuffer = nextBuffer;
+    frameCount++;
     return buffer[renderBuffer];
 }
 
 uint32_t* Render::getRenderedFrame() {
     std::unique_lock<std::shared_mutex> lock(buffer_mutex_);
+    if (frameCount == lastRender) {
+        /* we haven't rendered a new frame since the last render, just output the last known frame to work */
+        return buffer[readyBuffer];
+    }
+    lastRender = frameCount;
     int nextBuffer = lastBuffer;
     lastBuffer = readyBuffer;
     readyBuffer = nextBuffer;
