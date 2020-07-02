@@ -59,16 +59,16 @@ void Render::updateCamera() {
     int leftright = input.left - input.right;
     int forwardbackward = 3 * (input.up - input.down);
     int updown = 2 * (input.lookup - input.lookdown);
-    double deltaTime = 1.2 * deltaFrames.count();
+    double deltaTime =  0.03 * 1.2 * deltaFrames.count();
     if (leftright != 0) {
-        camera.angle += leftright * 0.1 * deltaTime * 0.03;
+        camera.angle += leftright * 0.1 * deltaTime;
     }
     if (forwardbackward != 0) {
-        camera.x -= forwardbackward * sin(camera.angle) * deltaTime * 0.03;
-        camera.y -= forwardbackward * cos(camera.angle) * deltaTime * 0.03;
+        camera.x -= forwardbackward * sin(camera.angle) * deltaTime;
+        camera.y -= forwardbackward * cos(camera.angle) * deltaTime;
     }
     if (updown != 0) {
-      camera.height += updown * deltaTime * 0.03;
+      camera.height += updown * deltaTime;
     }
 
     lastFrame = currentFrame;
