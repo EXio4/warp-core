@@ -1,23 +1,41 @@
+#include <algorithm>
 #include <cstdint>
 
 #include "App/Map.hpp"
 #include "App/utils.hpp"
 
-std::map<TileType, uint32_t> colorMap = {
-    { Grass, rgba(0x98, 0xdd, 0x00, 0xff) },
-    { Water, rgba(0x00, 0xdd, 0xca, 0xff) },
-    { Sand , rgba(0xc2, 0xb2, 0x80, 0xff) },
-    { DesertSand, rgba(0xf4, 0xa4, 0x60, 0xff) },
-    { Dirt, rgba(0xbb, 0x8b, 0x00, 0xff) },
-    { Stone, rgba(0x8d, 0x8d, 0x8d, 0xff) },
-    { Ice, rgba(0xb9, 0xe8, 0xea, 0xff) },
-    { Snow, rgba(0xff, 0xfa, 0xfa, 0xff) },
-    { Lava, rgba(0xcf, 0x10, 0x20, 0xff) },
-    { VolcanicRock, rgba(0x3d, 0x3f, 0x3e, 0xff) },
-};
+uint32_t rgb_with_noise(double colorNoise, uint8_t r, uint8_t g, uint8_t b) {
+    uint8_t _r = std::min(255.0, ((double)r) * (1 + colorNoise));
+    uint8_t _g = std::min(255.0, ((double)g) * (1 + colorNoise));
+    uint8_t _b = std::min(255.0, ((double)b) * (1 + colorNoise));
+    return rgba(_r,_g,_b, 0xff);
+}
 
-uint32_t getColor(TileType type) {
-    return colorMap[type];
+uint32_t getColor(TileType type, double colorNoise) {
+    switch (type) {
+        case Grass:
+            return rgb_with_noise(colorNoise, 0x98, 0xdd, 0x00);
+        case Water:
+            return rgb_with_noise(colorNoise, 0x00, 0xdd, 0xca);
+        case Sand:
+            return rgb_with_noise(colorNoise, 0xc2, 0xb2, 0x80);
+        case DesertSand:
+            return rgb_with_noise(colorNoise, 0xf4, 0xa4, 0x60);
+        case Dirt:
+            return rgb_with_noise(colorNoise, 0xbb, 0x8b, 0x00);
+        case Stone:
+            return rgb_with_noise(colorNoise, 0x8d, 0x8d, 0x8d);
+        case Ice:
+            return rgb_with_noise(colorNoise, 0xb9, 0xe8, 0xea);
+        case Snow:
+            return rgb_with_noise(colorNoise, 0xff, 0xfa, 0xfa);
+        case Lava:
+            return rgb_with_noise(colorNoise, 0xcf, 0x10, 0x20);
+        case VolcanicRock:
+            return rgb_with_noise(colorNoise, 0x3d, 0x3f, 0xff);
+        default:
+            return rgba(0, 0, 0, 0xff);
+    }
 }
 
 Map::Map() {
@@ -40,6 +58,7 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     double noise = 16 * (heightNoise.octaveNoise(x/HEIGHT_RATIO, y/HEIGHT_RATIO, OCTAVES) + 1) - 1;
     double humid = 50 * (humidNoise.octaveNoise(x/HUMID_RATIO, y/HUMID_RATIO, OCTAVES) + 1);
     double temp  = 32.5 * (tempNoise.octaveNoise(x/TEMP_RATIO, y/TEMP_RATIO, OCTAVES) + 1) - 15;
+    double colorNoise = (50 * (extraNoise.octaveNoise(10 * x/HEIGHT_RATIO, 10 * y/HEIGHT_RATIO, OCTAVES) + 1) - 25) / 200;
 
     // range for values:
     // noise = 0-32
@@ -99,7 +118,7 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
 
     int32_t height = noise * 6;
     double light = sunlightBrightness;
-    uint32_t color = getColor(type);
+    uint32_t color = getColor(type, colorNoise);
 
     if (calculateLight) {
         TileData temp;
