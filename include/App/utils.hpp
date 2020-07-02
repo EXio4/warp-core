@@ -14,20 +14,16 @@ static div_t div_floor(int x, int y) {
     return r;
 }
 
-// taken from https://helloacm.com/cc-function-to-compute-the-bilinear-interpolation/
-inline double BilinearInterpolation(double q11, double q12, double q21, double q22, double x1, double x2, double y1, double y2, double x, double y) 
+// https://www.ece.iastate.edu/~alexs/classes/2012_Fall_185/sample_exams/midterm2/2010/Lab_v1/3_BilinearInterpolation.c
+inline double linearInterpolation(double x1, double f_x1, double x2, double f_x2, double x)
 {
-    double x2x1, y2y1, x2x, y2y, yy1, xx1;
-    x2x1 = x2 - x1;
-    y2y1 = y2 - y1;
-    x2x = x2 - x;
-    y2y = y2 - y;
-    yy1 = y - y1;
-    xx1 = x - x1;
-    return 1.0 / (x2x1 * y2y1) * (
-        q11 * x2x * y2y +
-        q21 * xx1 * y2y +
-        q12 * x2x * yy1 +
-        q22 * xx1 * yy1
-    );
+	double result = (x - x1)/(x2-x1)*f_x2  + (x2-x)/(x2-x1)*f_x1;
+	return result;
+}
+
+inline double BilinearInterpolation(double q11, double q12, double q21, double q22, double x1, double y1, double x2, double y2, double x, double y) 
+{
+	double R1 = linearInterpolation(x1, q11, x2, q21, x);
+	double R2 = linearInterpolation(x1, q12, x2, q22, x);
+	return  linearInterpolation(y1, R1, y2, R2, y);
 }

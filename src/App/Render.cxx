@@ -13,7 +13,7 @@ Render::Render() : map(1000), camera(
         180.96, // height
         M_PI/2,  // angle
         160.58, // horizon
-        350     // distance
+        340     // distance
     ) {
     width = 0;
     height = 0;
@@ -140,6 +140,7 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
 
 void Render::renderLoop() {
     while (keepRender) {
+        std::vector<uint32_t> hiddeny(width, height);
         uint32_t* data = finishRender();
         updateCamera();
         renderSky(data);
@@ -147,7 +148,6 @@ void Render::renderLoop() {
         double sinang = sin(camera.angle);
         double cosang = cos(camera.angle);
 
-        std::vector<uint32_t> hiddeny(width, height);
         double deltaz = 1;
         for (double z=1; z<camera.distance; z+=deltaz) {
             double plx =  -cosang * z - sinang * z;
@@ -163,22 +163,22 @@ void Render::renderLoop() {
 
             double invz = (1 / z) * 240;
             double distanceRatio = z / camera.distance;
-            if (distanceRatio < 0.4) {
+            if (distanceRatio < 0.5) {
                 distanceRatio = 0;
             } else {
-                distanceRatio = (distanceRatio - 0.4) * (1/0.6);
+                distanceRatio = (distanceRatio - 0.5) * (1/0.5);
             }
 
             for (uint32_t i=0; i<width; i++) {
                 TileData tile = map.get(plx, ply);
-                double height = (camera.height - tile.height) * invz + camera.horizon;
+                double height = (camera.height - (double)tile.height) * invz + camera.horizon;
                 drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
                 if (height < hiddeny[i]) hiddeny[i] = height;
                 plx += dx;
                 ply += dy;
             }
 
-            deltaz += 0.005;
+            deltaz += 0.001 + 0.0273397 * distanceRatio - 0.00448718 * distanceRatio * distanceRatio;
         }
     }
 }

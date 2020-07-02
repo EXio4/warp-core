@@ -209,14 +209,14 @@ TileData MapChunk::get(uint32_t offsetX, uint32_t offsetY, double x, double y) {
         ret.height = t.height;
     } else {
         ret.color = rgba(
-            BilinearInterpolation(r_y, r_0, r_xy, r_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
-            BilinearInterpolation(g_y, g_0, g_xy, g_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
-            BilinearInterpolation(b_y, b_0, b_xy, b_x, offsetX, offsetX+1, offsetY+1, offsetY, x, y),
+            BilinearInterpolation(r_0, r_y, r_x, r_xy, offsetX, offsetY, offsetX+1, offsetY+1, x, y),
+            BilinearInterpolation(g_0, g_y, g_x, g_xy, offsetX, offsetY, offsetX+1, offsetY+1, x, y),
+            BilinearInterpolation(b_0, b_y, b_x, b_xy, offsetX, offsetY, offsetX+1, offsetY+1, x, y),
             0xff
         );    
-        ret.height = BilinearInterpolation(t_y.height, t.height, t_xy.height, t_x.height, offsetX, offsetX+1, offsetY+1, offsetY, x, y);
+        ret.height = BilinearInterpolation(t.height, t_y.height, t_x.height, t_xy.height, offsetX, offsetY, offsetX+1, offsetY+1, x, y);
     }
-    ret.light = BilinearInterpolation(t_y.light, t.light, t_xy.light, t_x.light, offsetX, offsetX+1, offsetY+1, offsetY, x, y);
+    ret.light = BilinearInterpolation(t.light, t_y.light, t_x.light, t_xy.light, offsetX, offsetY, offsetX+1, offsetY+1, x, y);
     return ret;
 }
 
