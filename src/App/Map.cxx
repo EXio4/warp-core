@@ -194,7 +194,11 @@ void Map::syncLoop() {
         
         std::unique_lock<std::shared_mutex> lock2(mapgen_mutex_);
         std::unique_lock<std::shared_mutex> lock1(render_mutex_);
-        *renderMap = *mapgenMap;
+        auto local = renderMap;
+        renderMap = mapgenMap;
+        mapgenMap = local;
+        *mapgenMap = *renderMap;
+
     }
 }
 
