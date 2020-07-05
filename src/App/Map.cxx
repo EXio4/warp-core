@@ -193,10 +193,7 @@ void Map::syncLoop() {
         std::this_thread::sleep_for(1s);
         
         std::unique_lock<std::shared_mutex> lock2(mapgen_mutex_);
-        std::unique_lock<std::shared_mutex> lock1(render_mutex_);
-        auto local = renderMap;
-        renderMap = mapgenMap;
-        mapgenMap = local;
+        mapgenMap = renderMap.exchange(mapgenMap);
         *mapgenMap = *renderMap;
 
     }
@@ -336,12 +333,10 @@ TileData Map::get(double _x, double _y) {
     uint32_t offsetY = pY.rem;
     double px = _x - chunkX * CHUNK_SIZE;
     double py = _y - chunkY * CHUNK_SIZE;
-
     
-    std::shared_lock<std::shared_mutex> lock(render_mutex_);
-
-    const auto& chunkIter = renderMap->find({ chunkX, chunkY });
-    if (chunkIter != renderMap->end()) {
+    std::map<Vector2D, MapChunk*>& map = *renderMap.load(std::memory_order_relaxed);
+    const auto& chunkIter = map.find({ chunkX, chunkY });
+    if (chunkIter != map.end()) {
         return chunkIter->second->get(offsetX, offsetY, px, py);
     } else {
         return voidTile;

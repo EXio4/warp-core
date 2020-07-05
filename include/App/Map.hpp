@@ -100,9 +100,7 @@ private:
     int cameraX;
     int cameraY;
 
-
-    mutable std::shared_mutex render_mutex_;
-    std::map<Vector2D, MapChunk*> *renderMap;
+    std::atomic<std::map<Vector2D, MapChunk*>*> renderMap;
     mutable std::shared_mutex mapgen_mutex_;
     std::map<Vector2D, MapChunk*> *mapgenMap;
 
