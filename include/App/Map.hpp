@@ -102,9 +102,9 @@ private:
 
 
     mutable std::shared_mutex render_mutex_;
-    std::map<Vector2D, MapChunk*> renderMap;
+    std::map<Vector2D, MapChunk*> *renderMap;
     mutable std::shared_mutex mapgen_mutex_;
-    std::map<Vector2D, MapChunk*> mapgenMap;
+    std::map<Vector2D, MapChunk*> *mapgenMap;
 
     siv::PerlinNoise heightNoise;
     siv::PerlinNoise humidNoise;

@@ -49,7 +49,7 @@ uint32_t getColor(TileType type, double colorNoise) {
     }
 }
 
-Map::Map() {
+Map::Map() : renderMap(new std::map<Vector2D, MapChunk*>()), mapgenMap(new std::map<Vector2D, MapChunk*>()) {
     keepRunning = true;
     baselineBrightness = 20;
     sunlightBrightness = 100;
@@ -57,7 +57,7 @@ Map::Map() {
     cameraX = cameraY = 0;
 }
 
-Map::Map(uint32_t seed) : heightNoise(seed), tempNoise(seed + 2), humidNoise(seed + 3), extraNoise(seed + 4) {
+Map::Map(uint32_t seed) : renderMap(new std::map<Vector2D, MapChunk*>()), mapgenMap(new std::map<Vector2D, MapChunk*>()), heightNoise(seed), tempNoise(seed + 2), humidNoise(seed + 3), extraNoise(seed + 4) {
     keepRunning = true;
     baselineBrightness = 20;
     sunlightBrightness = 100;
@@ -194,7 +194,7 @@ void Map::syncLoop() {
         
         std::unique_lock<std::shared_mutex> lock2(mapgen_mutex_);
         std::unique_lock<std::shared_mutex> lock1(render_mutex_);
-        renderMap = mapgenMap;
+        *renderMap = *mapgenMap;
     }
 }
 
@@ -229,8 +229,8 @@ void Map::mapgenLoop() {
 
                         Vector2D pos = std::make_pair(x, y);
                         std::unique_lock<std::shared_mutex> mapgenLock(mapgen_mutex_);
-                        const auto& chunkIter = mapgenMap.find(pos);
-                        bool ret = chunkIter == mapgenMap.end();
+                        const auto& chunkIter = mapgenMap->find(pos);
+                        bool ret = chunkIter == mapgenMap->end();
                         mapgenLock.unlock();
                         
                         if (ret) {
@@ -239,7 +239,7 @@ void Map::mapgenLoop() {
                             mapgen(chunk, x, y);
                             {
                                 std::unique_lock<std::shared_mutex> lock(mapgen_mutex_);
-                                mapgenMap.insert({ pos, chunk });
+                                mapgenMap->insert({ pos, chunk });
                             }
                         }
 
@@ -336,8 +336,8 @@ TileData Map::get(double _x, double _y) {
     
     std::shared_lock<std::shared_mutex> lock(render_mutex_);
 
-    const auto& chunkIter = renderMap.find({ chunkX, chunkY });
-    if (chunkIter != renderMap.end()) {
+    const auto& chunkIter = renderMap->find({ chunkX, chunkY });
+    if (chunkIter != renderMap->end()) {
         return chunkIter->second->get(offsetX, offsetY, px, py);
     } else {
         return voidTile;
