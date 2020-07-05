@@ -240,7 +240,6 @@ void Map::mapgenLoop() {
                         
                         if (ret) {
                             MapChunk* chunk = new MapChunk;
-                            std::cout << "calling mapgen on chunk (" << x << " , " << y << ")" << std::endl;
                             mapgen(chunk, x, y);
                             {
                                 std::unique_lock<std::shared_mutex> lock(mapgen_mutex_);
