@@ -229,10 +229,10 @@ void Map::mapgenLoop() {
                         }
 
                         Vector2D pos = std::make_pair(x, y);
-                        std::unique_lock<std::shared_mutex> cameraLock(camera_mutex_);
+                        std::unique_lock<std::shared_mutex> mapgenLock(mapgen_mutex_);
                         const auto& chunkIter = mapgenMap.find(pos);
                         bool ret = chunkIter == mapgenMap.end();
-                        cameraLock.unlock();
+                        mapgenLock.unlock();
                         
                         if (ret) {
                             MapChunk chunk;
