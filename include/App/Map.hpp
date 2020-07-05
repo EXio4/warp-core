@@ -56,9 +56,17 @@ struct TileData {
 using Vector2D = std::pair<int32_t, int32_t>;
 
 struct MapChunk {
-    bool initialized;
-    TileData data[CHUNK_SIZE*CHUNK_SIZE];
+    TileData* data;
 
+    MapChunk() {
+        data = NULL;
+    }
+    void initialize() {
+        data = new TileData[CHUNK_SIZE*CHUNK_SIZE];
+    }
+    void deleteMemory() {
+        if (data) delete[] data;
+    }
     TileData rawGet(uint32_t offsetX, uint32_t offsetY);
     TileData get(uint32_t offsetX, uint32_t offsetY, double x, double y);
 };
@@ -102,9 +110,9 @@ private:
 
 
     mutable std::shared_mutex render_mutex_;
-    std::map<Vector2D, MapChunk> renderMap;
+    std::map<Vector2D, MapChunk> *renderMap;
     mutable std::shared_mutex mapgen_mutex_;
-    std::map<Vector2D, MapChunk> mapgenMap;
+    std::map<Vector2D, MapChunk> *mapgenMap;
 
     siv::PerlinNoise heightNoise;
     siv::PerlinNoise humidNoise;
