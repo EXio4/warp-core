@@ -214,7 +214,7 @@ void Map::mapgenLoop() {
             int d = 0; // current direction; 0=RIGHT, 1=DOWN, 2=LEFT, 3=UP
             int c = 0; // counter
             int s = 1; // chain size
-            int size = 8;
+            int size = 5;
             // code from https://stackoverflow.com/questions/33684970/print-2-d-array-in-clockwise-expanding-spiral-from-center
             for (int k=1; k<=(size-1); k++)
             {
