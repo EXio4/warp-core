@@ -1,9 +1,19 @@
 #include <algorithm>
 #include <iostream>
+#include <chrono>
 #include <cstdint>
 
 #include "App/Map.hpp"
 #include "App/utils.hpp"
+
+TileData voidTile = {
+    BNormal,
+    TVoid,
+    Stone,
+    rgba(0,0,0, 0xff),
+    0,
+    0,
+};
 
 uint32_t rgb_with_noise(double colorNoise, uint8_t r, uint8_t g, uint8_t b) {
     uint8_t _r = std::min(255.0, ((double)r) * (1 + colorNoise));
@@ -40,15 +50,32 @@ uint32_t getColor(TileType type, double colorNoise) {
 }
 
 Map::Map() {
+    keepRunning = true;
     baselineBrightness = 20;
     sunlightBrightness = 100;
     sunlightAngle = M_PI/3;
+    cameraX = cameraY = 0;
 }
 
 Map::Map(uint32_t seed) : heightNoise(seed), tempNoise(seed + 2), humidNoise(seed + 3), extraNoise(seed + 4) {
+    keepRunning = true;
     baselineBrightness = 20;
     sunlightBrightness = 100;
     sunlightAngle = M_PI/3;
+    cameraX = cameraY = 0;
+}
+
+
+void Map::setCameraPosition(int x, int y) {
+    int chunkX = x/CHUNK_SIZE;
+    int chunkY = y/CHUNK_SIZE;
+    
+    std::unique_lock<std::shared_mutex> lock(camera_mutex_);
+    if (abs(cameraX - chunkX) >= 2 || abs(cameraY - chunkY) >= 2) {
+        cameraX = chunkX;
+        cameraY = chunkY;
+        updatedCamera = true;
+    }
 }
 
 void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
@@ -156,6 +183,82 @@ void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
     chunk.initialized = true;
 }
 
+void Map::startThreads() {
+    mapgenThread = std::thread(&Map::mapgenLoop, &*this);
+    syncThread = std::thread(&Map::syncLoop, &*this);
+}
+
+void Map::syncLoop() {
+    using namespace std::chrono_literals;
+    while (keepRunning) {
+        std::this_thread::sleep_for(1s);
+        
+        std::unique_lock<std::shared_mutex> lock2(mapgen_mutex_);
+        std::unique_lock<std::shared_mutex> lock1(render_mutex_);
+        renderMap = mapgenMap;
+    }
+}
+
+void Map::mapgenLoop() {    
+    int x = cameraX; // current position; x
+    int y = cameraY; // current position; y
+    newIteration:
+    
+    while (keepRunning) {
+            int d = 0; // current direction; 0=RIGHT, 1=DOWN, 2=LEFT, 3=UP
+            int c = 0; // counter
+            int s = 1; // chain size
+            int size = 8;
+            // code from https://stackoverflow.com/questions/33684970/print-2-d-array-in-clockwise-expanding-spiral-from-center
+            for (int k=1; k<=(size-1); k++)
+            {
+                for (int j=0; j<(k<(size-1)?2:3); j++)
+                {
+                    for (int i=0; i<s; i++)
+                    {
+                        c++;
+                        if (c % 4 == 3) {
+                            if (updatedCamera) {
+                                std::unique_lock<std::shared_mutex> lock(camera_mutex_);
+                                x = cameraX;
+                                y = cameraY;
+                                updatedCamera = false;
+                                lock.unlock();
+                                goto newIteration;
+                            }
+                        }
+
+                        Vector2D pos = std::make_pair(x, y);
+                        std::unique_lock<std::shared_mutex> cameraLock(camera_mutex_);
+                        const auto& chunkIter = mapgenMap.find(pos);
+                        bool ret = chunkIter == mapgenMap.end();
+                        cameraLock.unlock();
+                        
+                        if (ret) {
+                            MapChunk chunk;
+                            std::cout << "calling mapgen on chunk (" << x << " , " << y << ")" << std::endl;
+                            mapgen(chunk, x, y);
+                            {
+                                std::unique_lock<std::shared_mutex> lock(mapgen_mutex_);
+                                mapgenMap.insert({ pos, chunk });
+                            }
+                        }
+
+                        switch (d)
+                        {
+                            case 0: y = y + 1; break;
+                            case 1: x = x + 1; break;
+                            case 2: y = y - 1; break;
+                            case 3: x = x - 1; break;
+                        }
+                    }
+                    d = (d+1)%4;
+                }
+                s = s + 1;
+            }
+    }
+}
+
 TileData MapChunk::rawGet(uint32_t offsetX, uint32_t offsetY) {
     if (offsetX < 0) offsetX = 0;
     if (offsetY < 0) offsetY = 0;
@@ -232,14 +335,12 @@ TileData Map::get(double _x, double _y) {
     double py = _y - chunkY * CHUNK_SIZE;
 
     
-    const auto& chunkIter = cacheMap.find({ chunkX, chunkY });
-    if (chunkIter != cacheMap.end()) {
+    std::shared_lock<std::shared_mutex> lock(render_mutex_);
+
+    const auto& chunkIter = renderMap.find({ chunkX, chunkY });
+    if (chunkIter != renderMap.end()) {
         return chunkIter->second.get(offsetX, offsetY, px, py);
     } else {
-        Vector2D pos = std::make_pair(chunkX, chunkY);
-        MapChunk chunk;
-        mapgen(chunk, chunkX, chunkY);
-        cacheMap.insert({ pos, chunk });
-        return chunk.get(offsetX, offsetY, px, py);
+        return voidTile;
     }
 }

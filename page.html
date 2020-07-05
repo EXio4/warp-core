@@ -68,20 +68,20 @@ var Module = {
         width = Math.floor(window.innerWidth)
         height = Math.floor(window.innerHeight)
         img = ctx.createImageData(width, height)
-        Module._updateCanvas(width, height);
+        Module.updateCanvas(width, height);
         canvas.width = width
         canvas.height = height
       }
 
       // initialize routines
-      Module._initInput()
-      Module._initRender()
+      Module.initInput()
+      Module.initRender()
 
       canvas.onkeydown    = function (e) {
-        Module._processKey(e.keyCode, 1)
+        Module.processKey(e.keyCode, 1)
       }
       canvas.onkeyup      = function (e) {
-        Module._processKey(e.keyCode, 0)
+        Module.processKey(e.keyCode, 0)
       }
       onResize()
       window.onresize = onResize

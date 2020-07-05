@@ -3,7 +3,7 @@
 #include <vector>
 #include <cmath>
 
-#include "input.hpp"
+#include "App/Input.hpp"
 #include "App/Render.hpp"
 #include "App/utils.hpp"
 
@@ -13,7 +13,7 @@ Render::Render() : map(1000), camera(
         180.96, // height
         M_PI/2,  // angle
         160.58, // horizon
-        340     // distance
+        350     // distance
     ) {
     width = 0;
     height = 0;
@@ -40,6 +40,7 @@ Render::~Render() {
 }
 
 void Render::startThread() {
+    map.startThreads();
     renderThread = std::thread(&Render::renderLoop, &*this);
 }
 
@@ -115,6 +116,7 @@ void Render::updateCamera() {
     }
 
     lastFrame = currentFrame;
+    map.setCameraPosition(camera.x, camera.y);
 }
 
 uint32_t Render::applyEffects (uint32_t color, double light, double distanceRatio) {
@@ -148,7 +150,7 @@ void Render::renderLoop() {
         double sinang = sin(camera.angle);
         double cosang = cos(camera.angle);
 
-        double deltaz = 1;
+        double deltaz = 0.25;
         for (double z=1; z<camera.distance; z+=deltaz) {
             double plx =  -cosang * z - sinang * z;
             double ply =   sinang * z - cosang * z;
@@ -162,23 +164,23 @@ void Render::renderLoop() {
             ply += camera.y;
 
             double invz = (1 / z) * 240;
-            double distanceRatio = z / camera.distance;
-            if (distanceRatio < 0.5) {
-                distanceRatio = 0;
+            double dR = z / camera.distance;
+            double fogRatio;
+            if (dR < 0.5) {
+                fogRatio = 0;
             } else {
-                distanceRatio = (distanceRatio - 0.5) * (1/0.5);
+                fogRatio = (dR - 0.5) * (1/0.5);
             }
 
             for (uint32_t i=0; i<width; i++) {
                 TileData tile = map.get(plx, ply);
                 double height = (camera.height - (double)tile.height) * invz + camera.horizon;
-                drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, distanceRatio));
+                drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, fogRatio));
                 if (height < hiddeny[i]) hiddeny[i] = height;
                 plx += dx;
                 ply += dy;
             }
-
-            deltaz += 0.001 + 0.0273397 * distanceRatio - 0.00448718 * distanceRatio * distanceRatio;
+            deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
         }
     }
 }

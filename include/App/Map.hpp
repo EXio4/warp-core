@@ -1,5 +1,8 @@
 #pragma once
 
+#include <atomic>
+#include <thread>
+#include <shared_mutex>
 #include <cstdint>
 #include <utility> // for std::pair
 #include <map>
@@ -64,9 +67,20 @@ class Map {
 public:
     Map();
     Map(uint32_t seed);
+    ~Map() {
+        keepRunning = false;
+        mapgenThread.join();
+        syncThread.join();
+    }
 
-    TileData get(double x, double y); 
+    TileData get(double x, double y);
+
+    void setCameraPosition(int x, int y);
+
+    void startThreads();
 private:
+
+    bool keepRunning;
 
     double baselineBrightness;
     double sunlightBrightness;
@@ -75,7 +89,22 @@ private:
     void genTile(TileData& res, double x, double y, bool calculateLight);
     void mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY);
 
-    std::map<Vector2D, MapChunk> cacheMap;
+    void mapgenLoop();
+    void syncLoop();
+
+    std::thread mapgenThread;
+    std::thread syncThread;
+
+    std::atomic<bool> updatedCamera;
+    mutable std::shared_mutex camera_mutex_;
+    int cameraX;
+    int cameraY;
+
+
+    mutable std::shared_mutex render_mutex_;
+    std::map<Vector2D, MapChunk> renderMap;
+    mutable std::shared_mutex mapgen_mutex_;
+    std::map<Vector2D, MapChunk> mapgenMap;
 
     siv::PerlinNoise heightNoise;
     siv::PerlinNoise humidNoise;
