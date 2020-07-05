@@ -57,7 +57,7 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   }
 }
 
-void Render::renderSky(uint32_t* data) {
+void Render::renderSky(uint32_t* data, int width, int height) {
     uint32_t skyColor = rgba(135, 206, 235, 255);
     for (uint32_t i=0; i<width*height; i++) {
         data[i] = skyColor;
@@ -147,7 +147,7 @@ void Render::renderLoop() {
         updateCamera(renderStartTime);
         map.setCameraPosition(camera.x, camera.y); 
  
-        renderSky(data);
+        renderSky(data, width, height);
 
         double sinang = sin(camera.angle);
         double cosang = cos(camera.angle);
