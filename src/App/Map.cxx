@@ -171,16 +171,15 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     res.height = height;
     res.light = light;
 }
-void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
-
+void Map::mapgen(MapChunk* chunk, int32_t chunkX, int32_t chunkY) {
     for (int32_t dy = 0; dy < CHUNK_SIZE; dy++) {
         for (int32_t dx = 0; dx < CHUNK_SIZE; dx++) {
             double x = chunkX * CHUNK_SIZE + dx;
             double y = chunkY * CHUNK_SIZE + dy;
-            genTile(chunk.data[dx * CHUNK_SIZE + dy], x, y, true);
+            genTile(chunk->data[dx * CHUNK_SIZE + dy], x, y, true);
         }
     }
-    chunk.initialized = true;
+    chunk->initialized = true;
 }
 
 void Map::startThreads() {
@@ -235,7 +234,7 @@ void Map::mapgenLoop() {
                         mapgenLock.unlock();
                         
                         if (ret) {
-                            MapChunk chunk;
+                            MapChunk* chunk = new MapChunk;
                             std::cout << "calling mapgen on chunk (" << x << " , " << y << ")" << std::endl;
                             mapgen(chunk, x, y);
                             {
@@ -339,7 +338,7 @@ TileData Map::get(double _x, double _y) {
 
     const auto& chunkIter = renderMap.find({ chunkX, chunkY });
     if (chunkIter != renderMap.end()) {
-        return chunkIter->second.get(offsetX, offsetY, px, py);
+        return chunkIter->second->get(offsetX, offsetY, px, py);
     } else {
         return voidTile;
     }

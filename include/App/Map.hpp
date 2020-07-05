@@ -87,7 +87,7 @@ private:
     double sunlightAngle;
 
     void genTile(TileData& res, double x, double y, bool calculateLight);
-    void mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY);
+    void mapgen(MapChunk* chunk, int32_t chunkX, int32_t chunkY);
 
     void mapgenLoop();
     void syncLoop();
@@ -102,9 +102,9 @@ private:
 
 
     mutable std::shared_mutex render_mutex_;
-    std::map<Vector2D, MapChunk> renderMap;
+    std::map<Vector2D, MapChunk*> renderMap;
     mutable std::shared_mutex mapgen_mutex_;
-    std::map<Vector2D, MapChunk> mapgenMap;
+    std::map<Vector2D, MapChunk*> mapgenMap;
 
     siv::PerlinNoise heightNoise;
     siv::PerlinNoise humidNoise;
