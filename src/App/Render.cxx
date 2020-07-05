@@ -138,9 +138,82 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
     }
 }
 
+
+void Render::workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainThread) {
+    RenderCommand finished;
+    finished.type = FinishedRendering;
+    while (true) {
+        WorkerCommand cmd = inputChan.read();
+
+        if (cmd.type == QuitThread) {
+            return;
+        }
+        if (cmd.type == StartRendering) {
+            uint32_t* data = cmd.data.startRendering.buffer;
+            RenderConfig cfg = cmd.data.startRendering.cfg;
+            std::vector<uint32_t> hiddeny(width, height);
+            double sinang = sin(camera.angle);
+            double cosang = cos(camera.angle);
+
+            double deltaz = 0.25;
+            for (double z=1; z<camera.distance; z+=deltaz) {
+                double plx =  -cosang * z - sinang * z;
+                double ply =   sinang * z - cosang * z;
+                double prx =   cosang * z - sinang * z;
+                double pry =  -sinang * z - cosang * z;
+
+                double dx = (prx - plx) / width;
+                double dy = (pry - ply) / width;
+
+                plx += camera.x;
+                ply += camera.y;
+
+                double invz = (1 / z) * 240;
+                double dR = z / camera.distance;
+                double fogRatio;
+                if (dR < 0.5) {
+                    fogRatio = 0;
+                } else {
+                    fogRatio = (dR - 0.5) * (1/0.5);
+                }
+
+                for (uint32_t i=0; i<width; i++) {
+                    TileData tile = map.get(plx, ply);
+                    double height = (camera.height - (double)tile.height) * invz + camera.horizon;
+                    drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, fogRatio));
+                    if (height < hiddeny[i]) hiddeny[i] = height;
+                    plx += dx;
+                    ply += dy;
+                }
+                deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
+            }
+
+            mainThread.write(finished);
+        }
+    }
+}
+
+struct RenderThreadInfo {
+    std::thread th;
+    Chan<WorkerCommand> workerChan;
+    Chan<RenderCommand> renderChan;
+    RenderConfig cfg;
+};
+
 void Render::renderLoop() {
+
+    const uint8_t threadCount = 1;
+    const int thWidth = width / threadCount;
+    std::vector<RenderThreadInfo> threads;
+
+    threads.resize(threadCount);
+    for (int i=0; i < threadCount; i++) {
+        threads[i].th = std::thread(&Render::workerLoop, &*this, threads[i].workerChan, threads[i].renderChan);
+        threads[i].cfg.startWidth = i * thWidth;
+        threads[i].cfg.endWidth = (i+1) * thWidth;
+    }
+
     while (keepRender) {
-        std::vector<uint32_t> hiddeny(width, height);
         uint32_t* data = finishRender();
         std::chrono::time_point<std::chrono::steady_clock> renderStartTime = std::chrono::steady_clock::now();
     
@@ -149,40 +222,19 @@ void Render::renderLoop() {
  
         renderSky(data, width, height);
 
-        double sinang = sin(camera.angle);
-        double cosang = cos(camera.angle);
+        for (int i=0; i<threadCount; i++) {
+            WorkerCommand cmd;
+            cmd.type = StartRendering;
+            cmd.data.startRendering.buffer = data;
+            cmd.data.startRendering.cfg = threads[i].cfg;
+            threads[i].workerChan.write(cmd);
+        }
 
-        double deltaz = 0.25;
-        for (double z=1; z<camera.distance; z+=deltaz) {
-            double plx =  -cosang * z - sinang * z;
-            double ply =   sinang * z - cosang * z;
-            double prx =   cosang * z - sinang * z;
-            double pry =  -sinang * z - cosang * z;
-
-            double dx = (prx - plx) / width;
-            double dy = (pry - ply) / width;
-
-            plx += camera.x;
-            ply += camera.y;
-
-            double invz = (1 / z) * 240;
-            double dR = z / camera.distance;
-            double fogRatio;
-            if (dR < 0.5) {
-                fogRatio = 0;
-            } else {
-                fogRatio = (dR - 0.5) * (1/0.5);
+        for (int i=0; i<threadCount; i++) {
+            RenderCommand cmd = threads[i].renderChan.read();
+            if (cmd.type != FinishedRendering) {
+                std::cout << "Error while rendering" << std::endl;
             }
-
-            for (uint32_t i=0; i<width; i++) {
-                TileData tile = map.get(plx, ply);
-                double height = (camera.height - (double)tile.height) * invz + camera.horizon;
-                drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, fogRatio));
-                if (height < hiddeny[i]) hiddeny[i] = height;
-                plx += dx;
-                ply += dy;
-            }
-            deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
         }
 
         

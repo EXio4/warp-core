@@ -51,7 +51,7 @@ private:
 
     std::thread renderThread;
 
-    void workerThread(std::shared_ptr<Chan<WorkerCommand>> inputChan, std::shared_ptr<Chan<RenderCommand>> mainThread) ;
+    void workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainThread) ;
 
     std::chrono::time_point<std::chrono::steady_clock> lastFrame;
 
