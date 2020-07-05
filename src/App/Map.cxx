@@ -55,8 +55,6 @@ Map::Map() {
     sunlightBrightness = 100;
     sunlightAngle = M_PI/3;
     cameraX = cameraY = 0;
-    mapgenMap = new std::map<Vector2D, MapChunk>();
-    renderMap = new std::map<Vector2D, MapChunk>();
 }
 
 Map::Map(uint32_t seed) : heightNoise(seed), tempNoise(seed + 2), humidNoise(seed + 3), extraNoise(seed + 4) {
@@ -174,9 +172,7 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     res.light = light;
 }
 void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
-    if (!chunk.data) {
-        chunk.initialize();
-    }
+
     for (int32_t dy = 0; dy < CHUNK_SIZE; dy++) {
         for (int32_t dx = 0; dx < CHUNK_SIZE; dx++) {
             double x = chunkX * CHUNK_SIZE + dx;
@@ -184,6 +180,7 @@ void Map::mapgen(MapChunk& chunk, int32_t chunkX, int32_t chunkY) {
             genTile(chunk.data[dx * CHUNK_SIZE + dy], x, y, true);
         }
     }
+    chunk.initialized = true;
 }
 
 void Map::startThreads() {
@@ -232,10 +229,10 @@ void Map::mapgenLoop() {
                         }
 
                         Vector2D pos = std::make_pair(x, y);
-                        std::unique_lock<std::shared_mutex> mapgenLock(mapgen_mutex_);
-                        const auto& chunkIter = mapgenMap->find(pos);
-                        bool ret = chunkIter == mapgenMap->end();
-                        mapgenLock.unlock();
+                        std::unique_lock<std::shared_mutex> cameraLock(camera_mutex_);
+                        const auto& chunkIter = mapgenMap.find(pos);
+                        bool ret = chunkIter == mapgenMap.end();
+                        cameraLock.unlock();
                         
                         if (ret) {
                             MapChunk chunk;
@@ -243,7 +240,7 @@ void Map::mapgenLoop() {
                             mapgen(chunk, x, y);
                             {
                                 std::unique_lock<std::shared_mutex> lock(mapgen_mutex_);
-                                mapgenMap->insert({ pos, chunk });
+                                mapgenMap.insert({ pos, chunk });
                             }
                         }
 
@@ -340,8 +337,8 @@ TileData Map::get(double _x, double _y) {
     
     std::shared_lock<std::shared_mutex> lock(render_mutex_);
 
-    const auto& chunkIter = renderMap->find({ chunkX, chunkY });
-    if (chunkIter != renderMap->end()) {
+    const auto& chunkIter = renderMap.find({ chunkX, chunkY });
+    if (chunkIter != renderMap.end()) {
         return chunkIter->second.get(offsetX, offsetY, px, py);
     } else {
         return voidTile;
