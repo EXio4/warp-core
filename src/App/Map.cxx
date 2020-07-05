@@ -6,6 +6,8 @@
 #include "App/Map.hpp"
 #include "App/utils.hpp"
 
+#include "debug.hpp"
+
 TileData voidTile = {
     BNormal,
     TVoid,
@@ -172,6 +174,8 @@ void Map::genTile(TileData& res, double x, double y, bool calculateLight) {
     res.light = light;
 }
 void Map::mapgen(MapChunk* chunk, int32_t chunkX, int32_t chunkY) {
+    
+    std::chrono::time_point<std::chrono::steady_clock> mapgenStartTime = std::chrono::steady_clock::now();
     for (int32_t dy = 0; dy < CHUNK_SIZE; dy++) {
         for (int32_t dx = 0; dx < CHUNK_SIZE; dx++) {
             double x = chunkX * CHUNK_SIZE + dx;
@@ -179,7 +183,9 @@ void Map::mapgen(MapChunk* chunk, int32_t chunkX, int32_t chunkY) {
             genTile(chunk->data[dx * CHUNK_SIZE + dy], x, y, true);
         }
     }
-    chunk->initialized = true;
+    std::chrono::time_point<std::chrono::steady_clock> mapgenEndTime = std::chrono::steady_clock::now();
+    const std::chrono::duration<double, std::milli> mapgenTime = mapgenEndTime - mapgenStartTime;
+    debug.mapgen.newEntry(mapgenTime.count());
 }
 
 void Map::startThreads() {
@@ -217,15 +223,13 @@ void Map::mapgenLoop() {
                     for (int i=0; i<s; i++)
                     {
                         c++;
-                        if (c % 4 == 3) {
-                            if (updatedCamera) {
-                                std::unique_lock<std::shared_mutex> lock(camera_mutex_);
-                                x = cameraX;
-                                y = cameraY;
-                                updatedCamera = false;
-                                lock.unlock();
-                                goto newIteration;
-                            }
+                        if (updatedCamera.load(std::memory_order_relaxed)) {
+                            std::unique_lock<std::shared_mutex> lock(camera_mutex_);
+                            x = cameraX;
+                            y = cameraY;
+                            updatedCamera = false;
+                            lock.unlock();
+                            goto newIteration;
                         }
 
                         Vector2D pos = std::make_pair(x, y);

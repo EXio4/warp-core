@@ -20,20 +20,107 @@
         height: 100vh;
       }
 
-      #fps-counter {
+      #debug-info {
         position: absolute;
         top: 0px;
         right: 0px;
-        width: 60px;
-        height: 16px;
-        font-size: 16px;
+        width: 150px;
+        height: 90px;
+        padding: 5px;
+        font-size: 12px;
         color: white;
+        background-color: rgba(128, 128, 128, 128);
+      }
+      .debug-entry {
+        width: 100%;
+      }
+      .debug-entry-name {
+        display: inline;
+      }
+      .debug-entry-value {
+        display: inline;
+      }
+      .debug-entry-unit {
+        display: inline;
       }
     </style>
   </head>
   <body>
     <canvas id="c" tabindex="0"></canvas>
-    <div id='fps-counter'> .... fps </div>
+    <div id='debug-info'>
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Main
+        </div>
+        <div class="debug-entry-value" id="main-fps">
+
+        </div>
+        <div class="debug-entry-unit">
+          fps (avg)
+        </div>
+      </div>
+
+
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Render
+        </div>
+        <div class="debug-entry-value" id="render-instant-fps">
+
+        </div>
+        <div class="debug-entry-unit">
+          fps
+        </div>
+      </div>
+
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Render
+        </div>
+        <div class="debug-entry-value" id="render-average-fps">
+
+        </div>
+        <div class="debug-entry-unit">
+          fps (avg))
+        </div>
+      </div>
+
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Mapgen
+        </div>
+        <div class="debug-entry-value" id="mapgen-count">
+
+        </div>
+        <div class="debug-entry-unit">
+          chunks generated
+        </div>
+      </div>
+
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Mapgen
+        </div>
+        <div class="debug-entry-value" id="mapgen-instant-time">
+
+        </div>
+        <div class="debug-entry-unit">
+          ms
+        </div>
+      </div>
+
+      <div class="debug-entry">
+        <div class="debug-entry-name">
+          Mapgen
+        </div>
+        <div class="debug-entry-value" id="mapgen-average-time">
+
+        </div>
+        <div class="debug-entry-unit">
+          ms (avg))
+        </div>
+      </div>
+    </div>
   </body>
 
   <script>
@@ -103,11 +190,24 @@ var Module = {
 
       window.setInterval(function(){
         const current = new Date().getTime()
-        document.getElementById('fps-counter').innerText =
-          (frames / (current-frameTime) * 1000).toFixed(1) + " fps";
+        document.getElementById('main-fps').innerText =
+          (frames / (current-frameTime) * 1000).toFixed(1);
         frames = 0
         frameTime = current
       }, 2000)
+      window.setInterval(function () {
+        document.getElementById('render-instant-fps').innerText =
+          (1000 / Module.debug_render_lastTime()).toFixed(1)
+        document.getElementById('render-average-fps').innerText =
+          (1000 / Module.debug_render_averageTime()).toFixed(1)
+
+          document.getElementById('mapgen-count').innerText =
+            Module.debug_mapgen_count();
+          document.getElementById('mapgen-instant-time').innerText =
+            Module.debug_mapgen_lastTime().toFixed(1);
+          document.getElementById('mapgen-average-time').innerText =
+            Module.debug_mapgen_averageTime().toFixed(1)
+      }, 500)
     },
   };
   </script>

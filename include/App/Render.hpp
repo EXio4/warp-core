@@ -19,7 +19,7 @@ private:
     std::thread renderThread;
     std::chrono::time_point<std::chrono::steady_clock> lastFrame;
 
-    void updateCamera();
+    void updateCamera(std::chrono::time_point<std::chrono::steady_clock>& currentFrame);
     void renderSky(uint32_t* data);
     void drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
 

@@ -6,6 +6,7 @@
 #include "App/Input.hpp"
 #include "App/Render.hpp"
 #include "App/utils.hpp"
+#include "debug.hpp"
 
 Render::Render() : map(1000), camera(
         206.88, // x
@@ -96,8 +97,7 @@ void Render::drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybott
     }
 }
 
-void Render::updateCamera() {
-    auto currentFrame = std::chrono::steady_clock::now();
+void Render::updateCamera(std::chrono::time_point<std::chrono::steady_clock>& currentFrame) {
     const std::chrono::duration<double, std::milli> deltaFrames = currentFrame - lastFrame;
 
     int leftright = input.left - input.right;
@@ -115,8 +115,6 @@ void Render::updateCamera() {
       camera.height += updown * deltaTime;
     }
 
-    lastFrame = currentFrame;
-    map.setCameraPosition(camera.x, camera.y);
 }
 
 uint32_t Render::applyEffects (uint32_t color, double light, double distanceRatio) {
@@ -144,7 +142,11 @@ void Render::renderLoop() {
     while (keepRender) {
         std::vector<uint32_t> hiddeny(width, height);
         uint32_t* data = finishRender();
-        updateCamera();
+        std::chrono::time_point<std::chrono::steady_clock> renderStartTime = std::chrono::steady_clock::now();
+    
+        updateCamera(renderStartTime);
+        map.setCameraPosition(camera.x, camera.y); 
+ 
         renderSky(data);
 
         double sinang = sin(camera.angle);
@@ -182,5 +184,12 @@ void Render::renderLoop() {
             }
             deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
         }
+
+        
+        std::chrono::time_point<std::chrono::steady_clock> renderFinalTime = std::chrono::steady_clock::now();
+        const std::chrono::duration<double, std::milli> renderTime = renderFinalTime - renderStartTime;
+        debug.render.newEntry(renderTime.count());
+
+        lastFrame = renderStartTime;
     }
 }
