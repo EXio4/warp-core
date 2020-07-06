@@ -57,16 +57,10 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   }
 }
 
-void Render::renderSky(uint32_t* data, int startWidth, int endWidth, int height) {
+void Render::renderSky(uint32_t* data) {
     uint32_t skyColor = rgba(135, 206, 235, 255);
-    uint32_t offset = 0;
-    for (int y = 0; y < height; y ++) {
-        offset += startWidth;
-        for (int x = startWidth; x < endWidth; x++) {
-            data[offset] = skyColor;
-            offset++;
-        }
-        offset += width - endWidth;
+    for (int i=0; i<height*width; i++) {
+        data[i] = skyColor;
     }
 }
 
@@ -165,8 +159,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
             double cosang = cos(camera.angle);
 
             double deltaz = 0.25;
- 
-            renderSky(data, cfg.startWidth, cfg.endWidth, height);
+
             for (double z=1; z<camera.distance; z+=deltaz) {
                 double plx =  -cosang * z - sinang * z;
                 double ply =   sinang * z - cosang * z;
@@ -200,7 +193,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
                 }
                 deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
             }
-
+            
             std::unique_ptr<RenderCommand> finished = std::make_unique<RenderCommand>();
             finished->type = FinishedRendering;
             renderChan->write(std::move(finished));
@@ -217,6 +210,7 @@ struct RenderThreadInfo {
 
 void Render::renderLoop() {
 
+    int targetFPS = 60;
     const uint8_t threadCount = 1;
     const double thWidth = width / threadCount;
     std::vector<RenderThreadInfo> threads;
@@ -238,6 +232,8 @@ void Render::renderLoop() {
         updateCamera(renderStartTime);
         map.setCameraPosition(camera.x, camera.y); 
 
+        renderSky(data);
+
         for (int i=0; i<threadCount; i++) {
             std::unique_ptr<WorkerCommand> cmd = std::make_unique<WorkerCommand>();
             cmd->type = StartRendering;
@@ -247,7 +243,6 @@ void Render::renderLoop() {
             threads[i].workerChan->write(std::move(cmd));
         }
 
-        std::chrono::time_point<std::chrono::steady_clock> waitTimeStart = std::chrono::steady_clock::now();
         for (int i=0; i<threadCount; i++) {
             std::unique_ptr<RenderCommand> cmd = threads[i].renderChan->read();
             if (cmd->type != FinishedRendering) {
@@ -258,6 +253,18 @@ void Render::renderLoop() {
         std::chrono::time_point<std::chrono::steady_clock> renderFinalTime = std::chrono::steady_clock::now();
         const std::chrono::duration<double, std::milli> renderTime = renderFinalTime - renderStartTime;
         debug.render.newEntry(renderTime.count());
+
+        /* dynamic view distance scaling */
+
+        /*
+            double fps = 1000 / renderTime.count();
+            if (fps < targetFPS * 0.9 && camera.distance >= 200) {
+                camera.distance -= 10; 
+            }
+            if (fps > targetFPS * 1.1) {
+                camera.distance += 10;
+            }
+        */
 
         lastFrame = renderStartTime;
     }
