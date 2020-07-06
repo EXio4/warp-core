@@ -196,7 +196,7 @@ void Map::startThreads() {
 void Map::syncLoop() {
     using namespace std::chrono_literals;
     while (keepRunning) {
-        std::this_thread::sleep_for(1s);
+        std::this_thread::sleep_for(1500ms);
         
         std::unique_lock<std::shared_mutex> lock2(mapgen_mutex_);
         mapgenMap = renderMap.exchange(mapgenMap);

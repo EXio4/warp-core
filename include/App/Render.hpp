@@ -23,6 +23,7 @@ struct RenderConfig {
 union WorkerCommandData {
     struct {
         uint32_t* buffer;
+        uint32_t* fullBuffer;
         RenderConfig cfg;
     } startRendering;
 };
@@ -57,8 +58,8 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> lastFrame;
 
     void updateCamera(std::chrono::time_point<std::chrono::steady_clock>& currentFrame);
-    void renderSky(uint32_t* data);
-    void drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
+    void renderSky(uint32_t* data, uint32_t width, uint32_t height);
+    void drawVLine(uint32_t* data, uint32_t width, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
 
     void renderLoop();
 

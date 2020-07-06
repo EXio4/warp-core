@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 #include <cmath>
+#include <cstring>
 
 #include "App/Input.hpp"
 #include "App/Render.hpp"
@@ -49,6 +50,7 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   width = cWidth;
   height = cHeight;
   uint32_t pixelCount = width * height;
+  updatedDimensions = true;
   for (int i = 0; i < 3; i++) {
       if (buffer[i] != 0) {
           delete[] buffer[i];
@@ -57,9 +59,9 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   }
 }
 
-void Render::renderSky(uint32_t* data) {
+void Render::renderSky(uint32_t* data, uint32_t _width, uint32_t _height) {
     uint32_t skyColor = rgba(135, 206, 235, 255);
-    for (int i=0; i<height*width; i++) {
+    for (int i=0; i<_height*_width; i++) {
         data[i] = skyColor;
     }
 }
@@ -86,7 +88,7 @@ uint32_t* Render::getRenderedFrame() {
     return buffer[readyBuffer];
 }
 
-void Render::drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color) {
+void Render::drawVLine(uint32_t* data, uint32_t width, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color) {
     if (ytop < 0) ytop = 0;
     if (ytop > ybottom) return;
 
@@ -150,6 +152,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
         }
         if (cmd->type == StartRendering) {
             uint32_t* data = cmd->data.startRendering.buffer;
+            uint32_t* fullBuffer = cmd->data.startRendering.fullBuffer;
             RenderConfig cfg = cmd->data.startRendering.cfg;
             thNumber = cfg.threadNumber;
             const int properWidth = cfg.endWidth - cfg.startWidth;
@@ -159,6 +162,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
             double cosang = cos(camera.angle);
 
             double deltaz = 0.25;
+            renderSky(data, properWidth, height);
 
             for (double z=1; z<camera.distance; z+=deltaz) {
                 double plx =  -cosang * z - sinang * z;
@@ -186,14 +190,19 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
                 for (uint32_t i=0; i<properWidth; i++) {
                     TileData tile = map.get(plx, ply);
                     double height = (camera.height - (double)tile.height) * invz + camera.horizon;
-                    drawVLine(data, cfg.startWidth + i, height, hiddeny[i], applyEffects(tile.color , tile.light, fogRatio));
+                    drawVLine(data, properWidth, i, height, hiddeny[i], applyEffects(tile.color , tile.light, fogRatio));
                     if (height < hiddeny[i]) hiddeny[i] = height;
                     plx += dx;
                     ply += dy;
                 }
                 deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
             }
-            
+
+            for (int k=0; k < height; k++) {
+                uint32_t offsetInternal = k * properWidth;
+                uint32_t offsetLocal = k * width + cfg.threadNumber * properWidth;
+                std::memcpy(&fullBuffer[offsetLocal], &data[offsetInternal], properWidth * sizeof(uint32_t));
+            }       
             std::unique_ptr<RenderCommand> finished = std::make_unique<RenderCommand>();
             finished->type = FinishedRendering;
             renderChan->write(std::move(finished));
@@ -205,25 +214,39 @@ struct RenderThreadInfo {
     std::thread th;
     std::shared_ptr<MVar<WorkerCommand>> workerChan;
     std::shared_ptr<MVar<RenderCommand>> renderChan;
+    uint32_t* buffer;
     RenderConfig cfg;
+    RenderThreadInfo() : buffer(NULL) {};
 };
 
 void Render::renderLoop() {
 
     int targetFPS = 60;
-    const uint8_t threadCount = 1;
-    const double thWidth = width / threadCount;
+    const uint8_t threadCount = 4;
+    double thWidth = width;
     std::vector<RenderThreadInfo> threads;
 
     threads.resize(threadCount);
     for (int i=0; i < threadCount; i++) {
         threads[i].workerChan = std::make_shared<MVar<WorkerCommand>>();
         threads[i].renderChan = std::make_shared<MVar<RenderCommand>>();
-        threads[i].cfg.startWidth = i * thWidth;
-        threads[i].cfg.endWidth = (i+1) * thWidth;
         threads[i].cfg.threadNumber = i;
         threads[i].th = std::thread(&Render::workerLoop, &*this, threads[i].workerChan, threads[i].renderChan);
     }
+
+    const auto& onResize = [&]() {
+        thWidth = width / threadCount;
+        for (int i=0; i < threadCount; i++) {
+            threads[i].cfg.startWidth = i * thWidth;
+            threads[i].cfg.endWidth = (i+1) * thWidth;
+            if (threads[i].buffer) {
+                delete[] threads[i].buffer;
+            }
+            threads[i].buffer = new uint32_t[(int)thWidth * height];
+        }
+    };
+
+    onResize();
 
     while (keepRender) {
         uint32_t* data = finishRender();
@@ -232,12 +255,16 @@ void Render::renderLoop() {
         updateCamera(renderStartTime);
         map.setCameraPosition(camera.x, camera.y); 
 
-        renderSky(data);
+        if (updatedDimensions) {
+            updatedDimensions = false;
+            onResize();
+        }
 
         for (int i=0; i<threadCount; i++) {
             std::unique_ptr<WorkerCommand> cmd = std::make_unique<WorkerCommand>();
             cmd->type = StartRendering;
-            cmd->data.startRendering.buffer = data;
+            cmd->data.startRendering.buffer = threads[i].buffer;
+            cmd->data.startRendering.fullBuffer = data;
             cmd->data.startRendering.cfg = threads[i].cfg;
 
             threads[i].workerChan->write(std::move(cmd));
