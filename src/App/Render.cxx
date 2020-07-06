@@ -34,6 +34,10 @@ Render::Render() : map(1000), camera(
 
     frameCount = 0;
     lastRender = -1;
+
+    farDetail = 1;
+    closeDetail = 1;
+    overallDetail = 1;
 }
 
 Render::~Render() {
@@ -179,7 +183,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
                 double invz = (1 / z) * 240;
                 double dR = z / camera.distance;
                 double fogRatio;
-                if (dR < 0.5 || cfg.threadNumber%2 == 0) {
+                if (dR < 0.5) {
                     fogRatio = 0;
                 } else {
                     fogRatio = (dR - 0.5) * (1/0.5);
@@ -195,7 +199,12 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
                     plx += dx;
                     ply += dy;
                 }
-                deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
+                
+                deltaz = overallDetail * (
+                        (0.2 + 0.4 * dR + 0.4 * dR * dR) * closeDetail + // close-up formula
+                        (-0.4375 * dR + 3.4375 * dR * dR) * farDetail // far-away formula
+                    );
+//                deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
             }
 
             for (int k=0; k < height; k++) {
@@ -203,6 +212,7 @@ void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::sha
                 uint32_t offsetLocal = k * width + cfg.threadNumber * properWidth;
                 std::memcpy(&fullBuffer[offsetLocal], &data[offsetInternal], properWidth * sizeof(uint32_t));
             }       
+
             std::unique_ptr<RenderCommand> finished = std::make_unique<RenderCommand>();
             finished->type = FinishedRendering;
             renderChan->write(std::move(finished));
@@ -221,7 +231,7 @@ struct RenderThreadInfo {
 
 void Render::renderLoop() {
 
-    int targetFPS = 60;
+    int targetFPS = 35;
     const uint8_t threadCount = 4;
     double thWidth = width;
     std::vector<RenderThreadInfo> threads;
@@ -247,6 +257,9 @@ void Render::renderLoop() {
     };
 
     onResize();
+
+
+    double runningAvgFPS = 0;
 
     while (keepRender) {
         uint32_t* data = finishRender();
@@ -283,15 +296,18 @@ void Render::renderLoop() {
 
         /* dynamic view distance scaling */
 
-        /*
-            double fps = 1000 / renderTime.count();
-            if (fps < targetFPS * 0.9 && camera.distance >= 200) {
-                camera.distance -= 10; 
-            }
-            if (fps > targetFPS * 1.1) {
-                camera.distance += 10;
-            }
-        */
+        double fps = 1000 / renderTime.count();
+        runningAvgFPS = fps * 0.75 + runningAvgFPS * (1-0.75);
+        if (runningAvgFPS < targetFPS * 0.75 && overallDetail <= 4) {
+            overallDetail *= 1.001;
+            farDetail *= 1.001;
+            closeDetail *= 1.005;
+        }
+        if (runningAvgFPS > targetFPS * 1.25) {
+            overallDetail *= 0.999;
+            farDetail *= 0.98;
+            closeDetail *= 0.95;
+        }
 
         lastFrame = renderStartTime;
     }

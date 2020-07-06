@@ -51,6 +51,10 @@ public:
     uint32_t* getRenderedFrame();    
 private:
 
+    double closeDetail;
+    double farDetail;
+    double overallDetail;
+
     std::thread renderThread;
 
     void workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::shared_ptr<MVar<RenderCommand>> renderChan);
