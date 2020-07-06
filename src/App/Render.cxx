@@ -258,8 +258,6 @@ void Render::renderLoop() {
 
     onResize();
 
-
-    bool firstRun = false;
     double runningAvgFPS = 0;
 
     while (keepRender) {
@@ -298,21 +296,21 @@ void Render::renderLoop() {
         /* dynamic view distance scaling */
 
         double fps = 1000 / renderTime.count();
-        runningAvgFPS = fps * 0.75 + runningAvgFPS * (1-0.75);
-        
-        if (!firstRun) {
-            if (runningAvgFPS < targetFPS * 0.75 && overallDetail <= 4) {
-                overallDetail *= 1.001;
-                farDetail *= 1.001;
-                closeDetail *= 1.005;
-            }
-            if (runningAvgFPS > targetFPS * 1.25) {
-                overallDetail *= 0.999;
-                farDetail *= 0.98;
-                closeDetail *= 0.95;
-            }
+        if (runningAvgFPS == 0) {
+            runningAvgFPS = fps;
         } else {
-            firstRun = true;
+            runningAvgFPS = fps * 0.6 + runningAvgFPS * (1-0.6);
+        }
+    
+        if (runningAvgFPS < targetFPS * 0.75 && overallDetail <= 4) {
+            overallDetail *= 1.001;
+            farDetail *= 1.001;
+            closeDetail *= 1.005;
+        }
+        if (runningAvgFPS > targetFPS * 1.25) {
+            overallDetail *= 0.999;
+            farDetail *= 0.98;
+            closeDetail *= 0.95;
         }
 
         lastFrame = renderStartTime;
