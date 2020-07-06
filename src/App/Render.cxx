@@ -57,10 +57,16 @@ void Render::updateCanvas(uint32_t cWidth, uint32_t cHeight) {
   }
 }
 
-void Render::renderSky(uint32_t* data, int width, int height) {
+void Render::renderSky(uint32_t* data, int startWidth, int endWidth, int height) {
     uint32_t skyColor = rgba(135, 206, 235, 255);
-    for (uint32_t i=0; i<width*height; i++) {
-        data[i] = skyColor;
+    uint32_t offset = 0;
+    for (int y = 0; y < height; y ++) {
+        offset += startWidth;
+        for (int x = startWidth; x < endWidth; x++) {
+            data[offset] = skyColor;
+            offset++;
+        }
+        offset += width - endWidth;
     }
 }
 
@@ -139,23 +145,28 @@ uint32_t Render::applyEffects (uint32_t color, double light, double distanceRati
 }
 
 
-void Render::workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainThread) {
-    RenderCommand finished;
-    finished.type = FinishedRendering;
+void Render::workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::shared_ptr<MVar<RenderCommand>> renderChan) {
+    std::vector<uint32_t> hiddeny(width, height);
+    int thNumber = -1;
     while (true) {
-        WorkerCommand cmd = inputChan.read();
+        std::unique_ptr<WorkerCommand> cmd = inputChan->read();
 
-        if (cmd.type == QuitThread) {
+        if (cmd->type == QuitThread) {
             return;
         }
-        if (cmd.type == StartRendering) {
-            uint32_t* data = cmd.data.startRendering.buffer;
-            RenderConfig cfg = cmd.data.startRendering.cfg;
-            std::vector<uint32_t> hiddeny(width, height);
+        if (cmd->type == StartRendering) {
+            uint32_t* data = cmd->data.startRendering.buffer;
+            RenderConfig cfg = cmd->data.startRendering.cfg;
+            thNumber = cfg.threadNumber;
+            const int properWidth = cfg.endWidth - cfg.startWidth;
+            hiddeny.clear();
+            hiddeny.resize(properWidth, height);
             double sinang = sin(camera.angle);
             double cosang = cos(camera.angle);
 
             double deltaz = 0.25;
+ 
+            renderSky(data, cfg.startWidth, cfg.endWidth, height);
             for (double z=1; z<camera.distance; z+=deltaz) {
                 double plx =  -cosang * z - sinang * z;
                 double ply =   sinang * z - cosang * z;
@@ -171,16 +182,18 @@ void Render::workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainT
                 double invz = (1 / z) * 240;
                 double dR = z / camera.distance;
                 double fogRatio;
-                if (dR < 0.5) {
+                if (dR < 0.5 || cfg.threadNumber%2 == 0) {
                     fogRatio = 0;
                 } else {
                     fogRatio = (dR - 0.5) * (1/0.5);
                 }
 
-                for (uint32_t i=0; i<width; i++) {
+                plx += dx * cfg.startWidth;
+                ply += dy * cfg.startWidth;
+                for (uint32_t i=0; i<properWidth; i++) {
                     TileData tile = map.get(plx, ply);
                     double height = (camera.height - (double)tile.height) * invz + camera.horizon;
-                    drawVLine(data, i, height, hiddeny[i], applyEffects(tile.color, tile.light, fogRatio));
+                    drawVLine(data, cfg.startWidth + i, height, hiddeny[i], applyEffects(tile.color , tile.light, fogRatio));
                     if (height < hiddeny[i]) hiddeny[i] = height;
                     plx += dx;
                     ply += dy;
@@ -188,29 +201,34 @@ void Render::workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainT
                 deltaz = 2 * dR * dR + 0.5 * dR + 0.25;
             }
 
-            mainThread.write(finished);
+            std::unique_ptr<RenderCommand> finished = std::make_unique<RenderCommand>();
+            finished->type = FinishedRendering;
+            renderChan->write(std::move(finished));
         }
     }
 }
 
 struct RenderThreadInfo {
     std::thread th;
-    Chan<WorkerCommand> workerChan;
-    Chan<RenderCommand> renderChan;
+    std::shared_ptr<MVar<WorkerCommand>> workerChan;
+    std::shared_ptr<MVar<RenderCommand>> renderChan;
     RenderConfig cfg;
 };
 
 void Render::renderLoop() {
 
     const uint8_t threadCount = 1;
-    const int thWidth = width / threadCount;
+    const double thWidth = width / threadCount;
     std::vector<RenderThreadInfo> threads;
 
     threads.resize(threadCount);
     for (int i=0; i < threadCount; i++) {
-        threads[i].th = std::thread(&Render::workerLoop, &*this, threads[i].workerChan, threads[i].renderChan);
+        threads[i].workerChan = std::make_shared<MVar<WorkerCommand>>();
+        threads[i].renderChan = std::make_shared<MVar<RenderCommand>>();
         threads[i].cfg.startWidth = i * thWidth;
         threads[i].cfg.endWidth = (i+1) * thWidth;
+        threads[i].cfg.threadNumber = i;
+        threads[i].th = std::thread(&Render::workerLoop, &*this, threads[i].workerChan, threads[i].renderChan);
     }
 
     while (keepRender) {
@@ -219,24 +237,23 @@ void Render::renderLoop() {
     
         updateCamera(renderStartTime);
         map.setCameraPosition(camera.x, camera.y); 
- 
-        renderSky(data, width, height);
 
         for (int i=0; i<threadCount; i++) {
-            WorkerCommand cmd;
-            cmd.type = StartRendering;
-            cmd.data.startRendering.buffer = data;
-            cmd.data.startRendering.cfg = threads[i].cfg;
-            threads[i].workerChan.write(cmd);
+            std::unique_ptr<WorkerCommand> cmd = std::make_unique<WorkerCommand>();
+            cmd->type = StartRendering;
+            cmd->data.startRendering.buffer = data;
+            cmd->data.startRendering.cfg = threads[i].cfg;
+
+            threads[i].workerChan->write(std::move(cmd));
         }
 
+        std::chrono::time_point<std::chrono::steady_clock> waitTimeStart = std::chrono::steady_clock::now();
         for (int i=0; i<threadCount; i++) {
-            RenderCommand cmd = threads[i].renderChan.read();
-            if (cmd.type != FinishedRendering) {
+            std::unique_ptr<RenderCommand> cmd = threads[i].renderChan->read();
+            if (cmd->type != FinishedRendering) {
                 std::cout << "Error while rendering" << std::endl;
             }
         }
-
         
         std::chrono::time_point<std::chrono::steady_clock> renderFinalTime = std::chrono::steady_clock::now();
         const std::chrono::duration<double, std::milli> renderTime = renderFinalTime - renderStartTime;

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include "App/Camera.hpp"
 #include "App/Map.hpp"
-#include "Ext/Chan.hpp"
+#include "Ext/MVar.hpp"
 
 
 enum WorkerCommandType {
@@ -17,6 +17,7 @@ enum WorkerCommandType {
 struct RenderConfig {
     int startWidth;
     int endWidth;
+    int threadNumber;
 };
 
 union WorkerCommandData {
@@ -51,12 +52,12 @@ private:
 
     std::thread renderThread;
 
-    void workerLoop(Chan<WorkerCommand> inputChan, Chan<RenderCommand> mainThread) ;
+    void workerLoop(std::shared_ptr<MVar<WorkerCommand>> inputChan, std::shared_ptr<MVar<RenderCommand>> renderChan);
 
     std::chrono::time_point<std::chrono::steady_clock> lastFrame;
 
     void updateCamera(std::chrono::time_point<std::chrono::steady_clock>& currentFrame);
-    void renderSky(uint32_t* data, int width, int height);
+    void renderSky(uint32_t* data, int startWidth, int endWidth, int height);
     void drawVLine(uint32_t* data, uint32_t x, uint32_t ytop, uint32_t ybottom, uint32_t color);
 
     void renderLoop();
